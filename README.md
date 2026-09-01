@@ -13,13 +13,11 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 ## Contrat d'intégration
 
-La note de cadrage de la DSI (`docs/cadrage_dsi.md`) fait foi : exigences E1–E6,
-matrice d'accès, et **contrat d'intégration** — commande de lancement du serveur
-(`python -m mcp_server.server`, profil via `SORABEL_PROFILE`, journal via
-`GATEWAY_JOURNAL`), catalogue de tools, enveloppe de réponse JSON
-`{status, payload, message}` et format du journal. La suite `tests/acceptance/`
-consomme la gateway en boîte noire, exactement comme un client interne :
-elle est rouge tant que le serveur et ses tools ne tiennent pas ce contrat.
+Contrat d'intégration non fourni à ce stade — exigences E1–E6, matrice d'accès
+et enveloppes (réponse, journal) restent à définir en conception avant
+implémentation. La suite `tests/acceptance/` consomme la gateway en boîte
+noire, exactement comme un client interne : elle est rouge tant que le
+serveur et ses tools ne tiennent pas ce contrat, une fois fixé.
 
 ## Stack
 
@@ -60,7 +58,6 @@ data/
   corpus/             # ~400 documents : fiches/ notices/ (PDF), sav/ (HTML), notes/ (Markdown)
   sorabel.db          # base SQL (hors git — générée par make seed, schéma dans docs/schema.sql)
 docs/
-  cadrage_dsi.md      # exigences E1–E6, matrice d'accès, contrat d'intégration
   schema.sql          # schéma commenté de la base (colonnes sensibles signalées)
 eval/
   questions_rag.jsonl # questions documentaires : couvertes, hors corpus, par référence exacte
