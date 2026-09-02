@@ -30,9 +30,9 @@ EXAMPLE_DOCUMENT_IDS = [
 
 STAGE_LABELS = {
     "reference": "0. Routing par référence exacte",
-    "dense": "1. Dense (Chroma)",
-    "lexical": "2. BM25 (lexical)",
-    "fused": "3. Fusion RRF",
+    "dense": "1. Dense (Chroma) — score = distance L2, plus bas = plus proche",
+    "lexical": "2. BM25 (lexical) — score BM25, plus haut = meilleur",
+    "fused": "3. Fusion RRF — score RRF, plus haut = meilleur",
     "versioned": "4. Dernière version par famille",
     "diversified": "5. Diversification par thème",
     "reranked": "6. Rerank Cohere",
@@ -90,8 +90,13 @@ with tab_search:
                 for key, label in STAGE_LABELS.items():
                     if key in outcome.stages:
                         ids = outcome.stages[key]
+                        scores = outcome.stage_scores.get(key)
                         st.write(f"**{label}** — {len(ids)} candidats")
-                        st.code(", ".join(ids[:5]) + ("…" if len(ids) > 5 else ""))
+                        if scores:
+                            lines = [f"{cid}  ({scores[cid]:.4f})" for cid in ids[:5]]
+                        else:
+                            lines = ids[:5]
+                        st.code("\n".join(lines) + ("\n…" if len(ids) > 5 else ""))
 
         if outcome.is_refusal:
             st.error(f"❌ Refus — {outcome.reason}")

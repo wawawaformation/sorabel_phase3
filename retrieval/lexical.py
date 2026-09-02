@@ -13,10 +13,14 @@ class LexicalIndex:
         # BM25Okapi refuse un corpus vide : on garde l'index inactif dans ce cas.
         self._bm25 = BM25Okapi(corpus) if corpus else None
 
-    def search(self, query: str, limit: int) -> list[str]:
-        """Retourne les chunk_id classés par score BM25 décroissant."""
+    def search_with_scores(self, query: str, limit: int) -> list[tuple[str, float]]:
+        """Retourne (chunk_id, score BM25), score décroissant — plus haut = meilleur."""
         if self._bm25 is None:
             return []
         scores = self._bm25.get_scores(tokenize(query))
         ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-        return [self._chunk_ids[i] for i in ranked[:limit]]
+        return [(self._chunk_ids[i], float(scores[i])) for i in ranked[:limit]]
+
+    def search(self, query: str, limit: int) -> list[str]:
+        """Retourne les chunk_id classés par score BM25 décroissant."""
+        return [chunk_id for chunk_id, _ in self.search_with_scores(query, limit)]

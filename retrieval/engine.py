@@ -13,7 +13,7 @@ from gateway.embedder import Embedder
 from gateway.settings import Settings
 from retrieval.corpus import IndexedChunk, by_chunk_id, load_chunks
 from retrieval.dedup import diversify, keep_latest_version, version_key
-from retrieval.dense import dense_search
+from retrieval.dense import dense_search, dense_search_with_distances
 from retrieval.fusion import reciprocal_rank_fusion, rrf_scores
 from retrieval.lexical import LexicalIndex
 from retrieval.reranker import Reranker
@@ -33,6 +33,11 @@ class SearchOutcome:
     reason: str | None = None
     route: str = "hybrid"  # "reference" | "hybrid"
     stages: dict[str, list[str]] = field(default_factory=dict)
+    # Score par étage, pour l'affichage pédagogique — clés parmi "dense" (distance L2,
+    # plus bas = plus proche), "lexical" (BM25, plus haut = meilleur), "fused" (RRF,
+    # plus haut = meilleur). Absent pour "versioned"/"diversified" (filtres, pas de
+    # score propre) et "reranked" (déjà porté par Hit.rerank_score).
+    stage_scores: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -220,10 +225,13 @@ class SearchEngine:
 
     def _search_hybrid(self, question: str, limit: int) -> SearchOutcome:
         cfg = self._settings
-        dense = dense_search(
+        dense_scored = dense_search_with_distances(
             self._collection, self._embedder, question, cfg.dense_candidates
         )
-        lexical = self._lexical.search(question, cfg.lexical_candidates)
+        dense = [chunk_id for chunk_id, _ in dense_scored]
+        lexical_scored = self._lexical.search_with_scores(question, cfg.lexical_candidates)
+        lexical = [chunk_id for chunk_id, _ in lexical_scored]
+        fused_scores = rrf_scores([dense, lexical], k=cfg.rrf_k)
         fused = reciprocal_rank_fusion(
             [dense, lexical], k=cfg.rrf_k, limit=cfg.fusion_candidates
         )
@@ -236,12 +244,18 @@ class SearchEngine:
             "versioned": versioned,
             "diversified": diversified,
         }
+        stage_scores = {
+            "dense": dict(dense_scored),
+            "lexical": dict(lexical_scored),
+            "fused": {cid: fused_scores[cid] for cid in fused},
+        }
 
         if self._reranker is None or not cfg.rerank_enabled:
             # Sans rerank, aucun score absolu : pas de décision de refus (spec § 4.3).
             hits = [Hit(chunk=self._by_id[cid], rerank_score=None)
                     for cid in diversified[:limit]]
-            return SearchOutcome(hits=hits, is_refusal=False, route="hybrid", stages=stages)
+            return SearchOutcome(hits=hits, is_refusal=False, route="hybrid",
+                                  stages=stages, stage_scores=stage_scores)
 
         candidates = diversified[: cfg.rerank_candidates]
         results = self._reranker.rerank(
@@ -264,7 +278,9 @@ class SearchEngine:
                         f"sous le seuil de {cfg.refusal_threshold:.2f}"),
                 route="hybrid",
                 stages=stages,
+                stage_scores=stage_scores,
             )
         return SearchOutcome(
-            hits=reranked[:limit], is_refusal=False, route="hybrid", stages=stages
+            hits=reranked[:limit], is_refusal=False, route="hybrid",
+            stages=stages, stage_scores=stage_scores,
         )

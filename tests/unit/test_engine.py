@@ -54,6 +54,18 @@ def _engine(reranker=None, **overrides):
     return SearchEngine(_collection(), FakeEmbedder(), settings, reranker=reranker)
 
 
+def test_stage_scores_expose_dense_lexical_et_fusion():
+    reranker = FakeReranker({"procedure colis endommage v2": 0.85})
+    out = _engine(reranker).search("colis endommage")
+    # dense : distance L2, plus bas = plus proche (retrieval/dense.py).
+    assert "colis-v2.0#0" in out.stage_scores["dense"]
+    assert all(v >= 0 for v in out.stage_scores["dense"].values())
+    # lexical : score BM25, plus haut = meilleur.
+    assert "colis-v2.0#0" in out.stage_scores["lexical"]
+    # fusion RRF : score positif, plus haut = meilleur.
+    assert out.stage_scores["fused"]["colis-v2.0#0"] > 0
+
+
 def test_question_couverte_retourne_des_resultats():
     reranker = FakeReranker({"procedure colis endommage v2": 0.85, "notice led": 0.10})
     out = _engine(reranker).search("que faire si un colis arrive endommage ?")

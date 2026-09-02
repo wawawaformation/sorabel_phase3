@@ -34,3 +34,18 @@ def test_limite_respectee():
 
 def test_index_vide_ne_plante_pas():
     assert LexicalIndex([]).search("colis", limit=5) == []
+
+
+def test_avec_scores_plus_haut_est_meilleur():
+    results = _index().search_with_scores("colis endommagé", limit=3)
+    ids = [chunk_id for chunk_id, _ in results]
+    assert ids[0] == "colis#0"
+    scores = [score for _, score in results]
+    assert scores == sorted(scores, reverse=True)
+    assert scores[0] > 0.0  # au moins un mot en commun
+
+
+def test_search_reste_coherent_avec_la_version_scoree():
+    plain = _index().search("colis", limit=3)
+    scored = _index().search_with_scores("colis", limit=3)
+    assert plain == [chunk_id for chunk_id, _ in scored]

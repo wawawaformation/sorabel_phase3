@@ -19,9 +19,9 @@ from retrieval.reranker import AzureCohereReranker
 
 STAGE_LABELS = {
     "reference": "0. Routing par référence exacte",
-    "dense": "1. Dense (Chroma)",
-    "lexical": "2. BM25 (lexical)",
-    "fused": "3. Fusion RRF",
+    "dense": "1. Dense (Chroma) — distance, plus bas = plus proche",
+    "lexical": "2. BM25 (lexical) — score, plus haut = meilleur",
+    "fused": "3. Fusion RRF — score, plus haut = meilleur",
     "versioned": "4. Dernière version par famille",
     "diversified": "5. Diversification par thème",
     "reranked": "6. Rerank Cohere",
@@ -33,7 +33,11 @@ def show_stages(outcome: SearchOutcome) -> None:
     for key, label in STAGE_LABELS.items():
         if key in outcome.stages:
             ids = outcome.stages[key]
-            print(f"{label:38} {len(ids):3} candidats : {', '.join(ids[:3])}…")
+            scores = outcome.stage_scores.get(key)
+            print(f"{label} — {len(ids)} candidats :")
+            for chunk_id in ids[:3]:
+                suffix = f"  ({scores[chunk_id]:.4f})" if scores else ""
+                print(f"    {chunk_id}{suffix}")
 
 
 def render(outcome: SearchOutcome, answer: str | None) -> None:
