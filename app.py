@@ -29,13 +29,13 @@ EXAMPLE_DOCUMENT_IDS = [
 ]
 
 STAGE_LABELS = {
-    "reference": "0. Routing par référence exacte",
-    "dense": "1. Dense (Chroma) — score = distance L2, plus bas = plus proche",
-    "lexical": "2. BM25 (lexical) — score BM25, plus haut = meilleur",
-    "fused": "3. Fusion RRF — score RRF, plus haut = meilleur",
-    "versioned": "4. Dernière version par famille — anti-doublons de version",
-    "diversified": "5. Diversification par thème — anti-quasi-doublons",
-    "reranked": "6. Rerank Cohere",
+    "reference": "0. Routing par référence exacte — `retrieval/routing.py`",
+    "dense": "1. Dense (distance L2, plus bas = plus proche) — `retrieval/dense.py`",
+    "lexical": "2. BM25 (score, plus haut = meilleur) — `retrieval/lexical.py`",
+    "fused": "3. Fusion RRF (score, plus haut = meilleur) — `retrieval/fusion.py`",
+    "versioned": "4. Dernière version par famille (anti-doublons) — `retrieval/dedup.py`",
+    "diversified": "5. Diversification par thème (anti-quasi-doublons) — `retrieval/dedup.py`",
+    "reranked": "6. Rerank Cohere — `retrieval/reranker.py`",
 }
 
 
