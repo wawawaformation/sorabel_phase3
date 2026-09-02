@@ -28,12 +28,7 @@ Le seuil porte sur le score du reranker, jamais sur un score de fusion (le score
 | 0.68 | 8/8 | 1/14 |
 | 0.70 | 8/8 | 1/14 |
 
-**Seuil retenu : 0.65** — la grille initiale (pas de 0,10) était trop grossière pour le voir, mais un
-seuil parfait existe bel et bien : max(hors corpus) = 0,626, min(couvertes) = 0,669. 0,65 refuse les
-8/8 hors-corpus sans refuser aucune des 14 couvertes, avec une marge symétrique (~0,02) des deux côtés.
-La valeur provisoire de 0,40 posée avant calibration était trop basse : elle ne refusait que 4/8
-hors-corpus — vérifié en démo (question télétravail à 0,4164, juste au-dessus de 0,40, donc non
-refusée par le moteur bien que le LLM ait quand même refusé de répondre en aval).
+**Seuil retenu : 0.65** — refuse tous les hors-corpus sans refuser aucune question couverte.
 
 ## Scores bruts (hors corpus / couvertes, configuration C)
 
