@@ -38,6 +38,10 @@ build-backend = "setuptools.build_meta"
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+filterwarnings = [
+    # Interne à chromadb (accès à model_fields sur l'instance), pas notre code.
+    "ignore:Accessing the 'model_fields' attribute on the instance is deprecated.*:pydantic.warnings.PydanticDeprecatedSince211",
+]
 
 [tool.ruff]
 line-length = 100
