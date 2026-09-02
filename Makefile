@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest demo eval test fmt lint serve client journal
+.PHONY: install up down seed ingest demo ui eval test fmt lint serve client journal
 
 install:
 	uv sync
@@ -11,6 +11,9 @@ ingest:
 
 demo:
 	uv run python scripts/demo_agent.py $${Q:+"$$Q"}
+
+ui:
+	uv run streamlit run app.py
 
 eval:
 	uv run python scripts/eval_rag.py

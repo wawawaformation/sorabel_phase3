@@ -28,12 +28,12 @@ class Settings(BaseSettings):
     # Calibré sur eval/questions_rag.jsonl (scripts/eval_rag.py, voir eval/rapport_gain.md) :
     # max(hors corpus)=0.626, min(couvertes)=0.669, séparation parfaite entre 0.64 et 0.66.
     refusal_threshold: float = 0.65
-    dense_candidates: int = 30
-    lexical_candidates: int = 30
-    fusion_candidates: int = 20
-    rerank_candidates: int = 10
-    top_k: int = 5
-    rrf_k: int = 60
+    dense_candidates: int = 30 # nombre de candidats
+    lexical_candidates: int = 30 # nombre de candidats
+    fusion_candidates: int = 20 # nombre de candidats
+    rerank_candidates: int = 10 # nombre de candidats
+    top_k: int = 5 # a definir
+    rrf_k: int = 60 # a definir
 
     @property
     def azure_models_base_url(self) -> str:

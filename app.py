@@ -16,6 +16,9 @@ from retrieval.answer import compose_answer, format_citation
 from retrieval.engine import SearchEngine
 from retrieval.reranker import AzureCohereReranker
 
+CORPUS_DIR = get_settings().corpus_dir
+SOURCE_MIME = {"pdf": "application/pdf", "html": "text/html", "md": "text/markdown"}
+
 # Vérifiés présents dans le corpus (un par collection) — pas de saisie libre pour la démo.
 EXAMPLE_DOCUMENT_IDS = [
     "REF-1024-v2.1",
@@ -140,7 +143,25 @@ with tab_document:
             cols[0].metric("Collection", doc.collection)
             cols[1].metric("Type", doc.type_doc)
             cols[2].metric("Version", doc.version)
-            st.text_area("Contenu", doc.content, height=250)
+            st.text_area("Contenu (texte extrait)", doc.content, height=250)
+
+            dl1, dl2 = st.columns(2)
+            dl1.download_button(
+                "⬇️ Télécharger le texte extrait",
+                data=doc.content,
+                file_name=f"{document_id}.txt",
+                mime="text/plain",
+            )
+            source_path = CORPUS_DIR / doc.collection / f"{document_id}.{doc.source}"
+            if source_path.is_file():
+                dl2.download_button(
+                    "⬇️ Télécharger le fichier original",
+                    data=source_path.read_bytes(),
+                    file_name=source_path.name,
+                    mime=SOURCE_MIME.get(doc.source, "application/octet-stream"),
+                )
+            else:
+                dl2.caption("Fichier original introuvable sur le disque.")
 
 with tab_sources:
     st.caption(
