@@ -1,4 +1,10 @@
-"""Agent de démonstration du RAG hybride avec reranking.
+"""Agent de démonstration du RAG hybride avec reranking — équivalent CLI de app.py.
+
+Construit un ``SearchEngine`` (retrieval/engine.py) et l'interroge directement en
+Python, sans passer par un serveur MCP (qui n'existe pas encore, chantier suivant) :
+c'est ce qui permet de faire une démo du RAG dès aujourd'hui, indépendamment de la
+gateway. Deux modes : question en argument (une seule requête, sortie puis sortie du
+programme) ou aucun argument (boucle interactive, une session).
 
     uv run python scripts/demo_agent.py "que faire si un colis arrive endommagé ?"
     uv run python scripts/demo_agent.py --no-rerank "…"     # montre l'apport du rerank
@@ -29,6 +35,12 @@ STAGE_LABELS = {
 
 
 def show_stages(outcome: SearchOutcome) -> None:
+    """Affiche, étage par étage, les 3 premiers candidats retenus par le pipeline.
+
+    Lit ``outcome.stages``/``outcome.stage_scores`` (retrieval/engine.py) — cette
+    fonction ne recalcule rien, elle ne fait que mettre en forme une trace déjà
+    produite par ``SearchEngine.search``.
+    """
     print("\n--- Étapes du pipeline (retrieval/engine.py) ---")
     for key, label in STAGE_LABELS.items():
         if key in outcome.stages:
@@ -41,6 +53,11 @@ def show_stages(outcome: SearchOutcome) -> None:
 
 
 def render(outcome: SearchOutcome, answer: str | None) -> None:
+    """Affiche le résultat final : refus, absence de résultat, ou passages + réponse.
+
+    ``answer`` est ``None`` si ``--no-answer`` est passé ou si aucun passage n'a été
+    retenu — dans ce cas la ligne "--- Réponse ---" n'est simplement pas affichée.
+    """
     print(f"\nRoute : {outcome.route}")
     if outcome.is_refusal:
         print(f"\n❌ REFUS — {outcome.reason}")
@@ -57,6 +74,9 @@ def render(outcome: SearchOutcome, answer: str | None) -> None:
 
 
 def main() -> None:
+    """Parse les arguments, construit le moteur une seule fois, puis traite une
+    question (mode argument) ou boucle sur l'entrée standard (mode interactif).
+    """
     parser = argparse.ArgumentParser(description="Démo du RAG hybride Sorabel")
     parser.add_argument("question", nargs="?", help="question ; absente = mode interactif")
     parser.add_argument("--no-rerank", action="store_true", help="désactive le reranking")

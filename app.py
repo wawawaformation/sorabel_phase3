@@ -1,9 +1,14 @@
 """Démo RAG hybride + rerank — interface Streamlit.
 
-Reprend scripts/demo_agent.py avec une interface visuelle. Pas un livrable
-d'interface graphique complet (SQL, matrice d'accès) : juste le RAG, pour la démo.
+Reprend scripts/demo_agent.py avec une interface visuelle, un onglet par tool RAG de
+la conception (answer_question, search_docs, get_document, list_sources) plutôt qu'une
+seule boucle de questions. Pas un livrable d'interface graphique complet (SQL, matrice
+d'accès) : juste le RAG, pour la démo.
 
-Usage : ``make ui`` ou ``uv run streamlit run app.py``.
+Usage : ``make ui`` ou ``uv run streamlit run app.py``. Note pour le développement :
+Streamlit relance ce script à chaque interaction mais ne recharge jamais les modules
+déjà importés (``retrieval/``, ``gateway/``) — après une modification de ces modules,
+il faut tuer et relancer le process, pas compter sur le rechargement à chaud.
 """
 
 import streamlit as st
@@ -41,7 +46,13 @@ STAGE_LABELS = {
 
 @st.cache_resource
 def load_engine(rerank_enabled: bool) -> SearchEngine:
-    """Mis en cache par valeur de rerank_enabled : un seul chargement des 400 chunks."""
+    """Construit (et met en cache par valeur de ``rerank_enabled``) le moteur de recherche.
+
+    ``@st.cache_resource`` évite de reconstruire l'index BM25 à chaque interaction —
+    Streamlit relance ce script du haut en bas à chaque clic, mais le cache lui fait
+    sauter cet appel s'il a déjà tourné avec le même argument. Deux instances vivent
+    en cache (une par valeur du toggle sidebar), pas une seule.
+    """
     settings = get_settings().model_copy(update={"rerank_enabled": rerank_enabled})
     collection = open_collection(chroma_client(settings), settings.chroma_collection)
     reranker = AzureCohereReranker(settings) if rerank_enabled else None
@@ -50,6 +61,7 @@ def load_engine(rerank_enabled: bool) -> SearchEngine:
 
 @st.cache_resource
 def load_llm() -> OpenAI:
+    """Client OpenAI (Azure) pour la rédaction de réponse, mis en cache une seule fois."""
     settings = get_settings()
     return OpenAI(base_url=settings.azure_ai_endpoint, api_key=settings.azure_ai_api_key)
 
