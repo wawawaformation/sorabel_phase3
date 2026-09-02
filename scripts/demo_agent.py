@@ -22,8 +22,8 @@ STAGE_LABELS = {
     "dense": "1. Dense (Chroma) — distance, plus bas = plus proche",
     "lexical": "2. BM25 (lexical) — score, plus haut = meilleur",
     "fused": "3. Fusion RRF — score, plus haut = meilleur",
-    "versioned": "4. Dernière version par famille",
-    "diversified": "5. Diversification par thème",
+    "versioned": "4. Dernière version par famille — anti-doublons de version",
+    "diversified": "5. Diversification par thème — anti-quasi-doublons",
     "reranked": "6. Rerank Cohere",
 }
 
