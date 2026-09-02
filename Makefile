@@ -1,10 +1,13 @@
-.PHONY: install up down seed test fmt lint serve client journal
+.PHONY: install up down seed ingest test fmt lint serve client journal
 
 install:
 	uv sync
 
 seed:
 	uv run python scripts/seed.py
+
+ingest:
+	uv run python scripts/ingest.py
 
 up:
 	docker compose up -d
