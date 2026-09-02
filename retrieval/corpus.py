@@ -26,7 +26,7 @@ class IndexedChunk:
 
 
 def load_chunks(collection: Collection) -> list[IndexedChunk]:
-    got = collection.get(include=["documents", "metadatas"])
+    got = collection.get(include=["documents", "metadatas"])  # type: ignore[list-item]
     chunks: list[IndexedChunk] = []
     for chunk_id, content, meta in zip(
         got["ids"], got["documents"] or [], got["metadatas"] or [], strict=True

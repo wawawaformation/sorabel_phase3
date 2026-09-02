@@ -10,6 +10,6 @@ def dense_search(
 ) -> list[str]:
     """Retourne les chunk_id classés du plus proche au plus lointain."""
     vector = embedder.embed([query])[0]
-    result = collection.query(query_embeddings=[vector], n_results=limit)
+    result = collection.query(query_embeddings=[vector], n_results=limit)  # type: ignore[arg-type]
     ids = result["ids"]
     return list(ids[0]) if ids else []
