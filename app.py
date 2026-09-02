@@ -133,6 +133,14 @@ with tab_raw:
         for r in response.results:
             score = f"{r.rrf_score:.5f}" if r.rrf_score is not None else "—"
             st.markdown(f"**[{r.rank}]** score=`{score}`  {r.title}" + (f" — {r.ref_produit}" if r.ref_produit else ""))
+            document_id = r.chunk_id.rsplit("#", 1)[0]
+            st.download_button(
+                "⬇️ Télécharger le texte extrait",
+                data=r.content,
+                file_name=f"{document_id}.txt",
+                mime="text/plain",
+                key=f"dl_raw_{r.chunk_id}",
+            )
 
 with tab_document:
     st.caption("Équivalent du tool `get_document` : lookup direct par identifiant, sans recherche.")
