@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest test fmt lint serve client journal
+.PHONY: install up down seed ingest demo eval test fmt lint serve client journal
 
 install:
 	uv sync
@@ -8,6 +8,9 @@ seed:
 
 ingest:
 	uv run python scripts/run_ingest.py
+
+demo:
+	uv run python scripts/demo_agent.py $${Q:+"$$Q"}
 
 up:
 	docker compose up -d
@@ -24,7 +27,7 @@ fmt:
 
 lint:
 	uv run ruff check .
-	uv run mypy ingest retrieval sql mcp_server
+	uv run mypy gateway ingest retrieval sql mcp_server
 
 serve:
 	uv run python -m mcp_server.server
