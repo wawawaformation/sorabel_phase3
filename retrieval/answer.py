@@ -1,7 +1,11 @@
-"""Rédaction de la réponse sourcée.
+"""Rédaction de la réponse sourcée — dernier maillon, après ``SearchEngine.search``.
 
-La génération est côté client, hors du retrieval : le moteur retourne des passages,
-l'agent compose (conception « LLM côté client, hors MCP »).
+La génération est côté client, hors du retrieval : le moteur (retrieval/engine.py)
+retourne des passages (``Hit``), c'est ce module qui les met en forme pour le LLM et
+interprète sa réponse (conception « LLM côté client, hors MCP »). Le prompt système
+interdit explicitement d'inventer hors des passages fournis — la protection contre les
+questions hors-corpus vient du refus de ``SearchEngine`` en amont (spec § 4.3), pas de
+ce prompt, qui est une seconde ligne de défense.
 """
 
 from typing import Any
@@ -23,6 +27,12 @@ Règles impératives :
 
 
 def format_citation(chunk: IndexedChunk) -> str:
+    """Formate une citation « titre — référence — date », référence omise si absente.
+
+    Format attendu par le prompt système (``ANSWER_SYSTEM_PROMPT``) et réutilisé tel
+    quel côté affichage (app.py, scripts/demo_agent.py) — une seule fonction pour que
+    le format vu par le LLM et celui vu par l'utilisateur ne divergent jamais.
+    """
     parts = [chunk.title]
     if chunk.ref_produit:
         parts.append(chunk.ref_produit)
@@ -31,6 +41,11 @@ def format_citation(chunk: IndexedChunk) -> str:
 
 
 def build_context(hits: list[Hit]) -> str:
+    """Concatène les passages retenus en un bloc numéroté, prêt à insérer dans le prompt.
+
+    Chaque passage est précédé de sa citation, pour que le LLM puisse reprendre le
+    même format en fin de phrase plutôt que d'inventer sa propre mise en forme.
+    """
     blocks = []
     for position, hit in enumerate(hits, start=1):
         blocks.append(f"[{position}] {format_citation(hit.chunk)}\n{hit.chunk.content}")
@@ -38,7 +53,13 @@ def build_context(hits: list[Hit]) -> str:
 
 
 def compose_answer(client: Any, model: str, question: str, hits: list[Hit]) -> str:
-    """Appelle le LLM avec les passages retenus. `client` a la forme du SDK openai."""
+    """Envoie la question et les passages retenus au LLM, retourne le texte rédigé.
+
+    `client` a la forme du SDK openai (n'importe quel objet avec la même interface
+    ``chat.completions.create`` convient, non typé strictement pour rester injectable
+    en test). Utilise ``max_completion_tokens`` et non ``max_tokens`` : gpt-5.4-mini
+    rejette ce dernier (vérifié empiriquement, spec § 2.4).
+    """
     response = client.chat.completions.create(
         model=model,
         messages=[

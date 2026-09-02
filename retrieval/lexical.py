@@ -1,4 +1,10 @@
-"""Recherche lexicale BM25, index en mémoire reconstruit au démarrage."""
+"""Recherche lexicale BM25 (retrieval/fusion.py la combine à la recherche dense).
+
+Index en mémoire reconstruit au démarrage à partir des chunks déjà chargés depuis
+Chroma (retrieval/corpus.py) : ``rank_bm25`` ne persiste rien sur disque, donc l'index
+disparaît à l'arrêt du process et se reconstruit à chaque redémarrage de
+``SearchEngine`` — un coût négligeable sur 400 chunks (spec § 2.5).
+"""
 
 from rank_bm25 import BM25Okapi
 
@@ -7,6 +13,12 @@ from retrieval.tokenize import tokenize
 
 
 class LexicalIndex:
+    """Enveloppe autour de ``BM25Okapi`` qui garde la correspondance rang → chunk_id.
+
+    ``rank_bm25`` travaille par position dans le corpus (des entiers), pas par
+    chunk_id ; cette classe fait la traduction dans les deux sens.
+    """
+
     def __init__(self, chunks: list[IndexedChunk]) -> None:
         self._chunk_ids = [c.chunk_id for c in chunks]
         corpus = [tokenize(c.content) for c in chunks]

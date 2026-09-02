@@ -1,4 +1,12 @@
-"""Configuration partagée par l'ingestion, le retrieval et (plus tard) le serveur MCP."""
+"""Configuration partagée par l'ingestion, le retrieval et (plus tard) le serveur MCP.
+
+Un seul point d'entrée (``Settings``) pour toutes les variables d'environnement du
+projet : accès à Chroma, credentials Azure AI Foundry, et les réglages numériques du
+pipeline de retrieval hybride (volumes de candidats par étage, seuil de refus, k de
+la fusion RRF). Les valeurs par défaut correspondent à l'état calibré au 2026-09-02
+(voir eval/rapport_gain.md) — les modifier change le comportement du pipeline pour
+tous les consommateurs (ingest/, retrieval/, app.py, scripts/) sans recompilation.
+"""
 
 from functools import lru_cache
 from pathlib import Path
@@ -47,4 +55,11 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Construit (une seule fois par process, grâce au cache) l'instance ``Settings``.
+
+    Lit ``.env`` puis les variables d'environnement réelles. Le cache évite de
+    reparser l'environnement à chaque appel — utile car ``get_settings()`` est
+    appelé depuis de nombreux points (scripts, app.py, tests) sans qu'un objet
+    ``Settings`` unique ne soit explicitement propagé partout.
+    """
     return Settings()
