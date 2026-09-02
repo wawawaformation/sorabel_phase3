@@ -108,6 +108,35 @@ def test_search_docs_rang_et_score_expose():
     assert scores == sorted(scores, reverse=True)
 
 
+def test_list_sources_regroupe_par_famille_derniere_version_en_tete():
+    out = _engine(None).list_sources(collection="sav")
+    assert out.total_count == 1  # colis-v1.0 et colis-v2.0 : une seule famille "colis"
+    source = out.sources[0]
+    assert source.family_id == "colis"
+    assert source.current_version.version == "2.0"  # la plus récente, pas la mieux classée
+    assert source.current_version.chunk_count == 1
+    assert source.older_versions == []  # include_versions=False par défaut
+
+
+def test_list_sources_avec_versions_anterieures():
+    out = _engine(None).list_sources(collection="sav", include_versions=True)
+    older = out.sources[0].older_versions
+    assert [v.version for v in older] == ["1.0"]
+
+
+def test_list_sources_filtre_par_ref_produit():
+    out = _engine(None).list_sources(ref_produit="REF-1459")
+    assert out.total_count == 1
+    assert out.sources[0].family_id == "led"
+    assert out.filters_applied == {"ref_produit": "REF-1459"}
+
+
+def test_list_sources_aucun_filtre_retourne_tout():
+    out = _engine(None).list_sources()
+    assert out.total_count == 2  # familles "colis" et "led"
+    assert out.filters_applied == {}
+
+
 def test_get_document_trouve():
     doc = _engine(FakeReranker({})).get_document("led")
     assert doc is not None

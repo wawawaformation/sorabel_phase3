@@ -64,9 +64,12 @@ with st.sidebar:
     show_stages = st.toggle("Détailler le pipeline", value=False)
     show_answer = st.toggle("Générer une réponse (gpt-5.4-mini)", value=True)
 
-tab_search, tab_raw, tab_document = st.tabs(
-    ["🔎 Recherche (answer_question)", "🧪 Recherche brute (search_docs)", "📄 Récupérer un document"]
-)
+tab_search, tab_raw, tab_document, tab_sources = st.tabs([
+    "🔎 Recherche (answer_question)",
+    "🧪 Recherche brute (search_docs)",
+    "📄 Récupérer un document (get_document)",
+    "🗂️ Lister les sources (list_sources)",
+])
 
 with tab_search:
     question = st.text_input(
@@ -138,3 +141,34 @@ with tab_document:
             cols[1].metric("Type", doc.type_doc)
             cols[2].metric("Version", doc.version)
             st.text_area("Contenu", doc.content, height=250)
+
+with tab_sources:
+    st.caption(
+        "Équivalent du tool `list_sources` : énumération par métadonnées, regroupée par "
+        "famille (une entrée par document logique, versions antérieures optionnelles)."
+    )
+    col1, col2 = st.columns(2)
+    collection_filter = col1.selectbox(
+        "Collection", [None, "fiches", "notices", "sav", "notes"], format_func=lambda c: c or "Toutes"
+    )
+    ref_filter = col2.text_input("Référence produit (ex. REF-8842)", value="")
+    include_versions = st.checkbox("Inclure les versions antérieures", value=False)
+
+    engine = load_engine(rerank_on)
+    sources_response = engine.list_sources(
+        collection=collection_filter,
+        ref_produit=ref_filter or None,
+        include_versions=include_versions,
+    )
+    st.caption(
+        f"{sources_response.total_count} famille(s) — filtres : "
+        f"{sources_response.filters_applied or 'aucun'}"
+    )
+    for source in sources_response.sources:
+        cv = source.current_version
+        label = f"**{cv.title}**" + (f" — {source.ref_produit}" if source.ref_produit else "")
+        label += f"  ·  {source.collection} / {source.type_doc}  ·  v{cv.version} ({cv.date})"
+        st.markdown(label)
+        if include_versions and source.older_versions:
+            for v in source.older_versions:
+                st.caption(f"↳ version antérieure : v{v.version} ({v.date}) — {v.document_id}")

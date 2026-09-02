@@ -4,6 +4,7 @@ Chaque étape produit une liste de chunk_id ordonnée, conservée dans `stages` 
 l'affichage pédagogique de l'agent (--show-stages).
 """
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 from chromadb.api.models.Collection import Collection
@@ -11,7 +12,7 @@ from chromadb.api.models.Collection import Collection
 from gateway.embedder import Embedder
 from gateway.settings import Settings
 from retrieval.corpus import IndexedChunk, by_chunk_id, load_chunks
-from retrieval.dedup import diversify, keep_latest_version
+from retrieval.dedup import diversify, keep_latest_version, version_key
 from retrieval.dense import dense_search
 from retrieval.fusion import reciprocal_rank_fusion, rrf_scores
 from retrieval.lexical import LexicalIndex
@@ -54,6 +55,39 @@ class SearchDocsResponse:
     retrieval_count: int  # nombre de candidats testés avant le top_k
 
 
+@dataclass(frozen=True)
+class VersionSummary:
+    document_id: str
+    version: str
+    date: str
+
+
+@dataclass(frozen=True)
+class CurrentVersionSummary:
+    document_id: str
+    title: str
+    version: str
+    date: str
+    chunk_count: int  # toujours 1 sur ce corpus (1 chunk = 1 document)
+
+
+@dataclass(frozen=True)
+class SourceSummary:
+    family_id: str
+    current_version: CurrentVersionSummary
+    older_versions: list[VersionSummary]  # vide si include_versions=False
+    ref_produit: str | None
+    type_doc: str
+    collection: str
+
+
+@dataclass(frozen=True)
+class ListSourcesResponse:
+    sources: list[SourceSummary]
+    total_count: int  # nombre de familles, pas de chunks
+    filters_applied: dict[str, str]
+
+
 class SearchEngine:
     def __init__(
         self,
@@ -78,6 +112,64 @@ class SearchEngine:
         nouvel appel à Chroma.
         """
         return self._by_id.get(f"{document_id}#0")
+
+    def list_sources(
+        self,
+        collection: str | None = None,
+        type_doc: str | None = None,
+        ref_produit: str | None = None,
+        include_versions: bool = False,
+    ) -> ListSourcesResponse:
+        """Équivalent du tool list_sources : énumération par métadonnées, sans recherche.
+
+        Regroupe par family_id : une entrée par document logique, la version la plus
+        récente en current_version — pas la version qui serait la mieux classée dans
+        un retrieval, il n'y a pas de retrieval ici.
+        """
+        chunks = self._chunks
+        filters_applied: dict[str, str] = {}
+        if collection is not None:
+            chunks = [c for c in chunks if c.collection == collection]
+            filters_applied["collection"] = collection
+        if type_doc is not None:
+            chunks = [c for c in chunks if c.type_doc == type_doc]
+            filters_applied["type_doc"] = type_doc
+        if ref_produit is not None:
+            chunks = [c for c in chunks if c.ref_produit == ref_produit]
+            filters_applied["ref_produit"] = ref_produit
+
+        by_family: dict[str, list[IndexedChunk]] = defaultdict(list)
+        for chunk in chunks:
+            by_family[chunk.family_id].append(chunk)
+
+        sources = []
+        for family_id in sorted(by_family):
+            ordered = sorted(
+                by_family[family_id], key=lambda c: version_key(c.version), reverse=True
+            )
+            current, older = ordered[0], ordered[1:]
+            sources.append(
+                SourceSummary(
+                    family_id=family_id,
+                    current_version=CurrentVersionSummary(
+                        document_id=current.document_id,
+                        title=current.title,
+                        version=current.version,
+                        date=current.date,
+                        chunk_count=1,
+                    ),
+                    older_versions=[
+                        VersionSummary(document_id=c.document_id, version=c.version, date=c.date)
+                        for c in older
+                    ] if include_versions else [],
+                    ref_produit=current.ref_produit,
+                    type_doc=current.type_doc,
+                    collection=current.collection,
+                )
+            )
+        return ListSourcesResponse(
+            sources=sources, total_count=len(sources), filters_applied=filters_applied
+        )
 
     def search_docs(
         self, query: str, top_k: int = 5, include_score: bool = False
