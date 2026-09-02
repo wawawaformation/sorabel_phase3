@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from bs4 import BeautifulSoup
 from pypdf import PdfReader
 
 from ingest.errors import IngestionError
@@ -51,4 +52,32 @@ def extract_pdf(path: Path) -> Extracted:
         version=_require(RE_PDF_VERSION, text, path, "version"),
         date=_require(RE_PDF_DATE, text, path, "date"),
         ref_produit=_require(RE_PDF_REF, text, path, "ref_produit"),
+    )
+
+
+def _meta_content(soup: BeautifulSoup, name: str, path: Path) -> str:
+    tag = soup.find("meta", attrs={"name": name})
+    if tag is None or not tag.get("content"):
+        raise IngestionError(path, f"balise meta obligatoire introuvable : {name}")
+    return str(tag["content"]).strip()
+
+
+def extract_html(path: Path) -> Extracted:
+    """Extrait une procédure SAV.
+
+    Les 90 fichiers partagent la même séquence de balises et portent toujours les
+    trois meta version/date/type. `ref_produit` est None par construction : ces
+    procédures sont génériques.
+    """
+    soup = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
+    if soup.title is None or not soup.title.get_text(strip=True):
+        raise IngestionError(path, "champ obligatoire introuvable : title")
+    body = soup.body
+    text = body.get_text(separator=" ", strip=True) if body is not None else ""
+    return Extracted(
+        text=text,
+        title=soup.title.get_text(strip=True),
+        version=_meta_content(soup, "version", path),
+        date=_meta_content(soup, "date", path),
+        ref_produit=None,
     )
