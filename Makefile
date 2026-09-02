@@ -12,6 +12,9 @@ ingest:
 demo:
 	uv run python scripts/demo_agent.py $${Q:+"$$Q"}
 
+eval:
+	uv run python scripts/eval_rag.py
+
 up:
 	docker compose up -d
 

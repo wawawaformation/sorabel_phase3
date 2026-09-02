@@ -10,7 +10,7 @@ def test_valeurs_par_defaut():
     assert s.azure_model_text_embedding_small == "text-embedding-3-small"
     # nouveaux champs du retrieval
     assert s.rerank_enabled is True
-    assert s.refusal_threshold == 0.40
+    assert s.refusal_threshold == 0.65
     assert (s.dense_candidates, s.lexical_candidates) == (30, 30)
     assert (s.fusion_candidates, s.rerank_candidates, s.top_k) == (20, 10, 5)
     assert s.rrf_k == 60

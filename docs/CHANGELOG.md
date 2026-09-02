@@ -2,6 +2,36 @@
 
 Tâches réalisées, plus récentes en premier. Décisions de conception : voir `conception/` et son propre `CHANGELOG.md` (racine du projet).
 
+## 2026-09-02 — Retrieval hybride + rerank opérationnel, agent de démo
+
+- `retrieval/` construit selon `docs/spec_retrieval.md` et `docs/plan_retrieval.md` (11
+  tâches, TDD) : recherche dense (Chroma), BM25 en mémoire, fusion RRF (k=60), filtrage
+  de version + diversification, rerank Cohere (Azure AI Foundry), routing des références
+  exactes, décision de refus hors-corpus (E1), rédaction de réponse sourcée (`gpt-5.4-mini`).
+- Extraction de `gateway/` (settings, embedder, accès Chroma) partagé entre `ingest/` et
+  `retrieval/` — évite que `retrieval/` importe depuis `ingest/`.
+- Agent CLI `scripts/demo_agent.py` (`make demo`) : `--show-stages` détaille chaque étape
+  du pipeline, `--no-rerank` montre l'apport du reranking en désactivant le seuil de refus.
+- **API de rerank découverte par vérification directe** (non documentée par Azure AI
+  Foundry dans le SDK openai) : `POST {endpoint sans /openai/v1}/models/v1/rerank`,
+  en-tête `api-key`, format Cohere v1 — 14 routes testées avant de trouver la bonne.
+  Schéma dédié : `docs/schemas/rerank_reel.drawio`.
+- **Calibration du seuil de refus (E1)**, `scripts/eval_rag.py` (`make eval`) sur les
+  30 questions de `eval/questions_rag.jsonl` : seuil retenu **0.65** (max hors-corpus
+  mesuré 0.626, min couvertes mesuré 0.669 — séparation parfaite entre 0.64 et 0.66).
+  La valeur provisoire de 0.40 posée dans la spec était trop basse — trouvé en testant
+  l'agent en conditions réelles avant la calibration (question hors-corpus à 0.4164,
+  juste au-dessus, donc non refusée par le moteur).
+- Mesure E6 (`eval/rapport_gain.md`) : couvertes top-5 — dense seul 13/14, hybride
+  12/14, hybride+rerank 13/14 ; références exactes 8/8 dans les trois configurations
+  (routing déterministe, ne dépend pas du classement).
+- Couverture : 73 tests (69 unitaires + 4 d'intégration sur les 400 vrais chunks,
+  Chroma éphémère + embedder/reranker factices — ni Docker ni réseau requis en CI).
+  `ruff` et `mypy` propres.
+- Reste ouvert : `tests/acceptance/` encode toujours le contrat de `docs/cadrage_dsi.md`
+  (retiré) — à trancher avec le formateur avant le chantier MCP. Aucun tool MCP construit
+  ici : l'agent appelle le moteur directement, en Python.
+
 ## 2026-09-01 — Ingestion du corpus opérationnelle
 
 - `ingest/` construit selon `docs/spec_ingestion.md` et `docs/plan_ingestion.md` (11

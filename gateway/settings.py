@@ -25,7 +25,9 @@ class Settings(BaseSettings):
 
     # --- Retrieval ---
     rerank_enabled: bool = True
-    refusal_threshold: float = 0.40  # valeur provisoire, calibrée par scripts/eval_rag.py
+    # Calibré sur eval/questions_rag.jsonl (scripts/eval_rag.py, voir eval/rapport_gain.md) :
+    # max(hors corpus)=0.626, min(couvertes)=0.669, séparation parfaite entre 0.64 et 0.66.
+    refusal_threshold: float = 0.65
     dense_candidates: int = 30
     lexical_candidates: int = 30
     fusion_candidates: int = 20
