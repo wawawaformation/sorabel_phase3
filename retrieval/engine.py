@@ -13,7 +13,7 @@ from gateway.settings import Settings
 from retrieval.corpus import IndexedChunk, by_chunk_id, load_chunks
 from retrieval.dedup import diversify, keep_latest_version
 from retrieval.dense import dense_search
-from retrieval.fusion import reciprocal_rank_fusion
+from retrieval.fusion import reciprocal_rank_fusion, rrf_scores
 from retrieval.lexical import LexicalIndex
 from retrieval.reranker import Reranker
 from retrieval.routing import detect_reference, lookup_by_reference
@@ -34,6 +34,26 @@ class SearchOutcome:
     stages: dict[str, list[str]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class SearchDocResult:
+    chunk_id: str
+    rank: int  # position dans le top-k, 1-indexed
+    title: str
+    ref_produit: str | None
+    version: str
+    date: str
+    source: str
+    content: str
+    rrf_score: float | None  # présent seulement si include_score=True
+
+
+@dataclass(frozen=True)
+class SearchDocsResponse:
+    results: list[SearchDocResult]
+    query: str
+    retrieval_count: int  # nombre de candidats testés avant le top_k
+
+
 class SearchEngine:
     def __init__(
         self,
@@ -50,6 +70,44 @@ class SearchEngine:
         self._chunks = load_chunks(collection)
         self._by_id = by_chunk_id(self._chunks)
         self._lexical = LexicalIndex(self._chunks)
+
+    def get_document(self, document_id: str) -> IndexedChunk | None:
+        """Équivalent du tool get_document : lookup direct, sans recherche.
+
+        Les chunks sont déjà en mémoire (chargés à l'initialisation) : pas de
+        nouvel appel à Chroma.
+        """
+        return self._by_id.get(f"{document_id}#0")
+
+    def search_docs(
+        self, query: str, top_k: int = 5, include_score: bool = False
+    ) -> SearchDocsResponse:
+        """Équivalent du tool search_docs : recherche hybride brute.
+
+        Dense + BM25 + RRF, sans dédup de version, sans diversification, sans rerank
+        ni décision de refus — exploration/debug, pas answer_question (conception
+        tools_rag_mcp.md § 2).
+        """
+        cfg = self._settings
+        dense = dense_search(self._collection, self._embedder, query, cfg.dense_candidates)
+        lexical = self._lexical.search(query, cfg.lexical_candidates)
+        scores = rrf_scores([dense, lexical], k=cfg.rrf_k)
+        fused = sorted(scores, key=lambda cid: scores[cid], reverse=True)
+        results = [
+            SearchDocResult(
+                chunk_id=chunk_id,
+                rank=rank,
+                title=self._by_id[chunk_id].title,
+                ref_produit=self._by_id[chunk_id].ref_produit,
+                version=self._by_id[chunk_id].version,
+                date=self._by_id[chunk_id].date,
+                source=self._by_id[chunk_id].source,
+                content=self._by_id[chunk_id].content,
+                rrf_score=scores[chunk_id] if include_score else None,
+            )
+            for rank, chunk_id in enumerate(fused[:top_k], start=1)
+        ]
+        return SearchDocsResponse(results=results, query=query, retrieval_count=len(fused))
 
     def search(self, question: str, top_k: int | None = None) -> SearchOutcome:
         limit = top_k or self._settings.top_k

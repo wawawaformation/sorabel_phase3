@@ -87,6 +87,38 @@ def test_reference_exacte_court_circuite_le_retrieval():
     assert out.hits[0].rerank_score is None
 
 
+def test_search_docs_brut_sans_dedup_ni_refus():
+    # Pas de reranker fourni : search_docs ne doit pas en avoir besoin, contrairement
+    # à search() — c'est un mode brut, exploratoire (conception : "sans diversification").
+    out = _engine(None).search_docs("colis endommage", top_k=5)
+    assert out.query == "colis endommage"
+    assert out.retrieval_count >= len(out.results)
+    ids = [r.chunk_id for r in out.results]
+    # Les deux versions de la même famille peuvent toutes les deux apparaître :
+    # aucune déduplication en mode brut.
+    assert "colis-v1.0#0" in ids or "colis-v2.0#0" in ids
+    assert all(r.rrf_score is None for r in out.results)  # include_score=False par défaut
+
+
+def test_search_docs_rang_et_score_expose():
+    out = _engine(None).search_docs("colis endommage", top_k=3, include_score=True)
+    assert [r.rank for r in out.results] == list(range(1, len(out.results) + 1))
+    assert all(r.rrf_score is not None for r in out.results)
+    scores = [r.rrf_score for r in out.results]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_get_document_trouve():
+    doc = _engine(FakeReranker({})).get_document("led")
+    assert doc is not None
+    assert doc.title == "Projecteur LED"
+    assert doc.ref_produit == "REF-1459"
+
+
+def test_get_document_absent():
+    assert _engine(FakeReranker({})).get_document("inconnu") is None
+
+
 def test_sans_rerank_pas_de_refus():
     # Sans reranker il n'existe pas de signal de refus fiable (spec § 4.3) :
     # le moteur retourne des résultats sans décider.

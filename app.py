@@ -1,0 +1,140 @@
+"""Démo RAG hybride + rerank — interface Streamlit.
+
+Reprend scripts/demo_agent.py avec une interface visuelle. Pas un livrable
+d'interface graphique complet (SQL, matrice d'accès) : juste le RAG, pour la démo.
+
+Usage : ``make ui`` ou ``uv run streamlit run app.py``.
+"""
+
+import streamlit as st
+from openai import OpenAI
+
+from gateway.chroma import chroma_client, open_collection
+from gateway.embedder import AzureEmbedder
+from gateway.settings import get_settings
+from retrieval.answer import compose_answer, format_citation
+from retrieval.engine import SearchEngine
+from retrieval.reranker import AzureCohereReranker
+
+# Vérifiés présents dans le corpus (un par collection) — pas de saisie libre pour la démo.
+EXAMPLE_DOCUMENT_IDS = [
+    "REF-1024-v2.1",
+    "REF-8842-v2.1",
+    "notice-REF-1459-v1.1",
+    "proc-casse-transport-01-v2.0",
+    "note-2024-01-11-alerte-qualite-50",
+]
+
+STAGE_LABELS = {
+    "reference": "0. Routing par référence exacte",
+    "dense": "1. Dense (Chroma)",
+    "lexical": "2. BM25 (lexical)",
+    "fused": "3. Fusion RRF",
+    "versioned": "4. Dernière version par famille",
+    "diversified": "5. Diversification par thème",
+    "reranked": "6. Rerank Cohere",
+}
+
+
+@st.cache_resource
+def load_engine(rerank_enabled: bool) -> SearchEngine:
+    """Mis en cache par valeur de rerank_enabled : un seul chargement des 400 chunks."""
+    settings = get_settings().model_copy(update={"rerank_enabled": rerank_enabled})
+    collection = open_collection(chroma_client(settings), settings.chroma_collection)
+    reranker = AzureCohereReranker(settings) if rerank_enabled else None
+    return SearchEngine(collection, AzureEmbedder(settings), settings, reranker=reranker)
+
+
+@st.cache_resource
+def load_llm() -> OpenAI:
+    settings = get_settings()
+    return OpenAI(base_url=settings.azure_ai_endpoint, api_key=settings.azure_ai_api_key)
+
+
+st.set_page_config(page_title="Sorabel RAG — démo", page_icon="🔎")
+st.title("🔎 Sorabel — démo RAG hybride + rerank")
+st.caption(
+    "Dense + BM25 + RRF + rerank Cohere, refus hors-corpus calibré (E1). "
+    "Démo du chantier RAG uniquement — pas de matrice d'accès, pas de SQL."
+)
+
+with st.sidebar:
+    st.header("Options")
+    rerank_on = st.toggle("Rerank activé", value=True, help="Sans rerank : pas de refus fiable (spec §4.3)")
+    show_stages = st.toggle("Détailler le pipeline", value=False)
+    show_answer = st.toggle("Générer une réponse (gpt-5.4-mini)", value=True)
+
+tab_search, tab_raw, tab_document = st.tabs(
+    ["🔎 Recherche (answer_question)", "🧪 Recherche brute (search_docs)", "📄 Récupérer un document"]
+)
+
+with tab_search:
+    question = st.text_input(
+        "Question", placeholder="ex. que faire si un colis arrive endommagé ?"
+    )
+
+    if question:
+        engine = load_engine(rerank_on)
+        outcome = engine.search(question)
+
+        st.markdown(f"**Route :** `{outcome.route}`")
+
+        if show_stages:
+            with st.expander("Étapes du pipeline", expanded=True):
+                for key, label in STAGE_LABELS.items():
+                    if key in outcome.stages:
+                        ids = outcome.stages[key]
+                        st.write(f"**{label}** — {len(ids)} candidats")
+                        st.code(", ".join(ids[:5]) + ("…" if len(ids) > 5 else ""))
+
+        if outcome.is_refusal:
+            st.error(f"❌ Refus — {outcome.reason}")
+        elif not outcome.hits:
+            st.warning(f"Aucun résultat — {outcome.reason}")
+        else:
+            st.subheader("Passages retenus")
+            for position, hit in enumerate(outcome.hits, start=1):
+                score = f"{hit.rerank_score:.4f}" if hit.rerank_score is not None else "—"
+                st.markdown(f"**[{position}]** score=`{score}`  {format_citation(hit.chunk)}")
+                with st.expander("texte du passage"):
+                    st.write(hit.chunk.content)
+
+            if show_answer:
+                settings = get_settings()
+                with st.spinner("Génération de la réponse…"):
+                    answer = compose_answer(
+                        load_llm(), settings.azure_model_text_generation, question, outcome.hits
+                    )
+                st.subheader("Réponse")
+                st.write(answer)
+
+with tab_raw:
+    st.caption(
+        "Équivalent du tool `search_docs` : Dense + BM25 + RRF, "
+        "**sans** dédup de version, sans diversification, sans rerank ni refus."
+    )
+    raw_query = st.text_input("Requête", key="raw_query", placeholder="ex. colis endommagé")
+    include_score = st.checkbox("Afficher le score RRF (include_score)", value=True)
+    if raw_query:
+        engine = load_engine(rerank_on)
+        response = engine.search_docs(raw_query, top_k=10, include_score=include_score)
+        st.caption(f"{response.retrieval_count} candidats fusionnés, top {len(response.results)} affichés")
+        for r in response.results:
+            score = f"{r.rrf_score:.5f}" if r.rrf_score is not None else "—"
+            st.markdown(f"**[{r.rank}]** score=`{score}`  {r.title}" + (f" — {r.ref_produit}" if r.ref_produit else ""))
+
+with tab_document:
+    st.caption("Équivalent du tool `get_document` : lookup direct par identifiant, sans recherche.")
+    document_id = st.selectbox("Document", EXAMPLE_DOCUMENT_IDS)
+    if document_id:
+        engine = load_engine(rerank_on)
+        doc = engine.get_document(document_id)
+        if doc is None:
+            st.warning(f"Document introuvable : {document_id}")
+        else:
+            st.markdown(f"**{format_citation(doc)}**")
+            cols = st.columns(3)
+            cols[0].metric("Collection", doc.collection)
+            cols[1].metric("Type", doc.type_doc)
+            cols[2].metric("Version", doc.version)
+            st.text_area("Contenu", doc.content, height=250)

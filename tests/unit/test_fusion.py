@@ -1,4 +1,11 @@
-from retrieval.fusion import reciprocal_rank_fusion
+from retrieval.fusion import reciprocal_rank_fusion, rrf_scores
+
+
+def test_rrf_scores_expose_les_valeurs_brutes():
+    # a : 1er dans une seule liste -> 1/61. b : 2e dans les deux -> 1/62 + 1/62.
+    scores = rrf_scores([["a", "b"], ["c", "b"]])
+    assert scores["a"] == 1 / 61
+    assert scores["b"] == 2 / 62
 
 
 def test_document_present_dans_les_deux_classements_remonte():
