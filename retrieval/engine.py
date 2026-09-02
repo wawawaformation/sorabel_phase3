@@ -1,7 +1,25 @@
-"""Orchestration du retrieval hybride.
+"""Orchestration du retrieval hybride — module central du chantier RAG.
 
-Chaque étape produit une liste de chunk_id ordonnée, conservée dans `stages` pour
-l'affichage pédagogique de l'agent (--show-stages).
+``SearchEngine`` est le point d'entrée unique de tout le pipeline : c'est la classe
+que ``app.py`` et ``scripts/demo_agent.py`` instancient, et celle que le futur serveur
+MCP (chantier suivant) appellera à son tour. Elle expose quatre méthodes, chacune
+équivalente à un tool RAG de la conception : ``search`` (answer_question, avec
+dédup/diversification/rerank/refus), ``search_docs`` (mode brut, exploration),
+``get_document`` (lookup direct) et ``list_sources`` (énumération par métadonnées).
+
+Le cœur du pipeline hybride est ``_search_hybrid`` : dense (Chroma) + BM25 (lexical.py)
+→ fusion RRF (fusion.py) → dédup de version + diversification thématique (dedup.py)
+→ rerank Cohere (reranker.py) → décision de refus si le meilleur score reranké est
+sous le seuil calibré (spec § 4.3, § 5). Chaque étape produit une liste de chunk_id
+ordonnée, conservée dans ``stages`` (et son score dans ``stage_scores``) pour
+l'affichage pédagogique de la démo (--show-stages, sidebar Streamlit).
+
+``SearchEngine`` ne garde jamais le corpus complet en mémoire au-delà de sa
+construction : chaque méthode ne rapatrie depuis Chroma (retrieval/corpus.py) que les
+chunk_id dont elle a besoin à cet instant — un identifiant précis, les candidats d'un
+étage, ou tout le corpus uniquement pour ``list_sources`` (une énumération, par
+nature). Seul ``LexicalIndex`` retient une trace du corpus entier, sous la forme
+compacte de son index BM25.
 """
 
 from collections import defaultdict
@@ -22,12 +40,23 @@ from retrieval.routing import detect_reference, lookup_by_reference
 
 @dataclass(frozen=True)
 class Hit:
+    """Un résultat retenu par ``search()`` : le chunk complet et son score de rerank.
+
+    Unité de base consommée par retrieval/answer.py (compose_answer) et par l'affichage
+    (app.py, scripts/demo_agent.py) — jamais un chunk_id brut une fois sorti du moteur.
+    """
+
     chunk: IndexedChunk
     rerank_score: float | None  # None si le rerank est désactivé ou hors chemin
 
 
 @dataclass(frozen=True)
 class SearchOutcome:
+    """Résultat complet d'un ``search()`` : les hits (ou un refus) plus toute la
+    trace du pipeline, utile pour la démo et le débogage mais pas pour un usage
+    en production où seuls ``hits``/``is_refusal``/``reason`` comptent réellement.
+    """
+
     hits: list[Hit]
     is_refusal: bool
     reason: str | None = None
@@ -105,18 +134,21 @@ class SearchEngine:
         self._embedder = embedder
         self._settings = settings
         self._reranker = reranker
-        # Index BM25 reconstruit au démarrage depuis Chroma (spec § 4.6).
-        self._chunks = load_chunks(collection)
-        self._by_id = by_chunk_id(self._chunks)
-        self._lexical = LexicalIndex(self._chunks)
+        # BM25 doit voir tout le corpus une fois pour calculer ses statistiques
+        # (IDF, spec § 4.6) — mais contrairement à avant, ce résultat n'est pas
+        # conservé sur self : seul l'index BM25 construit à partir de lui persiste.
+        # Toute autre méthode (get_document, list_sources, _search_hybrid...)
+        # refait un appel Chroma ciblé plutôt que de lire un cache local du corpus.
+        self._lexical = LexicalIndex(load_chunks(collection))
 
     def get_document(self, document_id: str) -> IndexedChunk | None:
         """Équivalent du tool get_document : lookup direct, sans recherche.
 
-        Les chunks sont déjà en mémoire (chargés à l'initialisation) : pas de
-        nouvel appel à Chroma.
+        Un seul appel Chroma ciblé sur l'identifiant demandé (``ids=[...]``), pas de
+        cache local du corpus à consulter.
         """
-        return self._by_id.get(f"{document_id}#0")
+        found = load_chunks(self._collection, ids=[f"{document_id}#0"])
+        return found[0] if found else None
 
     def list_sources(
         self,
@@ -129,9 +161,11 @@ class SearchEngine:
 
         Regroupe par family_id : une entrée par document logique, la version la plus
         récente en current_version — pas la version qui serait la mieux classée dans
-        un retrieval, il n'y a pas de retrieval ici.
+        un retrieval, il n'y a pas de retrieval ici. Seule méthode qui rapatrie tout
+        le corpus (c'est la nature même d'une énumération), mais seulement à l'appel
+        — jamais préchargé au démarrage de ``SearchEngine``.
         """
-        chunks = self._chunks
+        chunks = load_chunks(self._collection)
         filters_applied: dict[str, str] = {}
         if collection is not None:
             chunks = [c for c in chunks if c.collection == collection]
@@ -183,30 +217,38 @@ class SearchEngine:
 
         Dense + BM25 + RRF, sans dédup de version, sans diversification, sans rerank
         ni décision de refus — exploration/debug, pas answer_question (conception
-        tools_rag_mcp.md § 2).
+        tools_rag_mcp.md § 2). Les métadonnées ne sont rapatriées de Chroma que pour
+        les ``top_k`` résultats finalement retournés, pas pour tous les candidats
+        fusionnés.
         """
         cfg = self._settings
         dense = dense_search(self._collection, self._embedder, query, cfg.dense_candidates)
         lexical = self._lexical.search(query, cfg.lexical_candidates)
         scores = rrf_scores([dense, lexical], k=cfg.rrf_k)
         fused = sorted(scores, key=lambda cid: scores[cid], reverse=True)
+        top_ids = fused[:top_k]
+        by_id = by_chunk_id(load_chunks(self._collection, ids=top_ids))
         results = [
             SearchDocResult(
                 chunk_id=chunk_id,
                 rank=rank,
-                title=self._by_id[chunk_id].title,
-                ref_produit=self._by_id[chunk_id].ref_produit,
-                version=self._by_id[chunk_id].version,
-                date=self._by_id[chunk_id].date,
-                source=self._by_id[chunk_id].source,
-                content=self._by_id[chunk_id].content,
+                title=by_id[chunk_id].title,
+                ref_produit=by_id[chunk_id].ref_produit,
+                version=by_id[chunk_id].version,
+                date=by_id[chunk_id].date,
+                source=by_id[chunk_id].source,
+                content=by_id[chunk_id].content,
                 rrf_score=scores[chunk_id] if include_score else None,
             )
-            for rank, chunk_id in enumerate(fused[:top_k], start=1)
+            for rank, chunk_id in enumerate(top_ids, start=1)
         ]
         return SearchDocsResponse(results=results, query=query, retrieval_count=len(fused))
 
     def search(self, question: str, top_k: int | None = None) -> SearchOutcome:
+        """Point d'entrée équivalent au tool answer_question (sans la rédaction LLM,
+        faite séparément par retrieval/answer.py). Route vers le lookup déterministe
+        par référence si la question en contient une, sinon vers le pipeline hybride.
+        """
         limit = top_k or self._settings.top_k
         reference = detect_reference(question)
         if reference is not None:
@@ -214,7 +256,10 @@ class SearchEngine:
         return self._search_hybrid(question, limit)
 
     def _search_by_reference(self, reference: str, limit: int) -> SearchOutcome:
-        found = lookup_by_reference(self._chunks, reference)
+        """Lookup déterministe : Chroma filtre côté serveur (``where``), pas de scan
+        du corpus complet côté Python."""
+        candidates = load_chunks(self._collection, where={"ref_produit": reference})
+        found = lookup_by_reference(candidates, reference)
         return SearchOutcome(
             hits=[Hit(chunk=c, rerank_score=None) for c in found[:limit]],
             is_refusal=False,  # lookup déterministe : pas de décision de pertinence
@@ -224,6 +269,12 @@ class SearchEngine:
         )
 
     def _search_hybrid(self, question: str, limit: int) -> SearchOutcome:
+        """Le pipeline complet (spec § 3) : dense + BM25 → fusion RRF → dédup de
+        version + diversification → rerank → décision de refus. Les métadonnées
+        nécessaires à la dédup/diversification/rerank sont rapatriées en un seul
+        appel Chroma groupé, limité aux candidats retenus après la fusion — jamais
+        au corpus entier.
+        """
         cfg = self._settings
         dense_scored = dense_search_with_distances(
             self._collection, self._embedder, question, cfg.dense_candidates
@@ -235,8 +286,9 @@ class SearchEngine:
         fused = reciprocal_rank_fusion(
             [dense, lexical], k=cfg.rrf_k, limit=cfg.fusion_candidates
         )
-        versioned = keep_latest_version(fused, self._by_id)
-        diversified = diversify(versioned, self._by_id)
+        by_id = by_chunk_id(load_chunks(self._collection, ids=fused))
+        versioned = keep_latest_version(fused, by_id)
+        diversified = diversify(versioned, by_id)
         stages = {
             "dense": dense,
             "lexical": lexical,
@@ -252,7 +304,7 @@ class SearchEngine:
 
         if self._reranker is None or not cfg.rerank_enabled:
             # Sans rerank, aucun score absolu : pas de décision de refus (spec § 4.3).
-            hits = [Hit(chunk=self._by_id[cid], rerank_score=None)
+            hits = [Hit(chunk=by_id[cid], rerank_score=None)
                     for cid in diversified[:limit]]
             return SearchOutcome(hits=hits, is_refusal=False, route="hybrid",
                                   stages=stages, stage_scores=stage_scores)
@@ -260,11 +312,11 @@ class SearchEngine:
         candidates = diversified[: cfg.rerank_candidates]
         results = self._reranker.rerank(
             question,
-            [self._by_id[cid].content for cid in candidates],
+            [by_id[cid].content for cid in candidates],
             top_n=cfg.rerank_candidates,
         )
         reranked = [
-            Hit(chunk=self._by_id[candidates[r.index]], rerank_score=r.score)
+            Hit(chunk=by_id[candidates[r.index]], rerank_score=r.score)
             for r in results
         ]
         stages["reranked"] = [h.chunk.chunk_id for h in reranked]
