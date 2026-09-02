@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import markdown as markdown_lib
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
 
@@ -17,6 +18,8 @@ RE_PDF_TITLE = re.compile(r"^(?:FICHE TECHNIQUE|NOTICE D'INSTALLATION)\s*-\s*(.+
 RE_PDF_REF = re.compile(r"R[ée]f[ée]rence produit\s*:\s*(REF-\d{4})")
 RE_PDF_VERSION = re.compile(r"Version\s*:\s*([\d.]+)")
 RE_PDF_DATE = re.compile(r"Date\s*:\s*(\d{4}-\d{2}-\d{2})")
+
+RE_FRONT_MATTER = re.compile(r"\A---\s*\n(?P<meta>.*?)\n---\s*\n(?P<body>.*)\Z", re.S)
 
 
 @dataclass(frozen=True)
@@ -79,5 +82,48 @@ def extract_html(path: Path) -> Extracted:
         title=soup.title.get_text(strip=True),
         version=_meta_content(soup, "version", path),
         date=_meta_content(soup, "date", path),
+        ref_produit=None,
+    )
+
+
+def parse_front_matter(raw: str, path: Path) -> dict[str, str]:
+    """Lit le front-matter `clé: valeur` et retire les guillemets encadrants.
+
+    Les 80 notes portent exactement les mêmes 5 clés, avec des scalaires simples :
+    un parseur minimal suffit, PyYAML n'apporterait rien.
+    """
+    match = RE_FRONT_MATTER.match(raw)
+    if match is None:
+        raise IngestionError(path, "front-matter absent ou mal délimité")
+    fields: dict[str, str] = {}
+    for line in match.group("meta").splitlines():
+        if not line.strip():
+            continue
+        key, _, value = line.partition(":")
+        fields[key.strip()] = value.strip().strip("'\"")
+    return fields
+
+
+def extract_markdown(path: Path) -> Extracted:
+    """Extrait une note interne : front-matter + corps réduit en texte brut.
+
+    Le corps passe par Markdown → HTML → texte, donc par le même extracteur que le
+    HTML de sav/ : un seul chemin de code d'extraction pour deux formats.
+    """
+    raw = path.read_text(encoding="utf-8")
+    fields = parse_front_matter(raw, path)
+    for field in ("titre", "version", "date"):
+        if not fields.get(field):
+            raise IngestionError(path, f"champ obligatoire introuvable : {field}")
+
+    match = RE_FRONT_MATTER.match(raw)
+    assert match is not None  # parse_front_matter aurait déjà levé sinon
+    html = markdown_lib.markdown(match.group("body"))
+    text = BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True)
+    return Extracted(
+        text=text,
+        title=fields["titre"],
+        version=fields["version"],
+        date=fields["date"],
         ref_produit=None,
     )
