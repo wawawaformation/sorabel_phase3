@@ -86,7 +86,7 @@ with tab_search:
         st.markdown(f"**Route :** `{outcome.route}`")
 
         if show_stages:
-            with st.expander("Étapes du pipeline", expanded=True):
+            with st.expander("Étapes du pipeline (retrieval/engine.py)", expanded=True):
                 for key, label in STAGE_LABELS.items():
                     if key in outcome.stages:
                         ids = outcome.stages[key]

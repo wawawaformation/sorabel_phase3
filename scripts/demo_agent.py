@@ -29,7 +29,7 @@ STAGE_LABELS = {
 
 
 def show_stages(outcome: SearchOutcome) -> None:
-    print("\n--- Étapes du pipeline ---")
+    print("\n--- Étapes du pipeline (retrieval/engine.py) ---")
     for key, label in STAGE_LABELS.items():
         if key in outcome.stages:
             ids = outcome.stages[key]
