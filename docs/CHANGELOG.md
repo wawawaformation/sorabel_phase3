@@ -2,6 +2,31 @@
 
 Tâches réalisées, plus récentes en premier. Décisions de conception : voir `conception/` et son propre `CHANGELOG.md` (racine du projet).
 
+## 2026-09-01 — Ingestion du corpus opérationnelle
+
+- `ingest/` construit selon `docs/spec_ingestion.md` et `docs/plan_ingestion.md` (11
+  tâches, TDD) : extraction PDF (`pypdf`)/HTML/Markdown (`beautifulsoup4`/`markdown`),
+  dérivation des métadonnées (`family_id`, `diversification_group`), chunking (1 chunk
+  = 1 document), embeddings Azure, écriture Chroma.
+- Point d'entrée `scripts/run_ingest.py` + cible `make ingest`.
+- **Bug trouvé et corrigé en cours de route** : le plan nommait le script
+  `scripts/ingest.py` — en l'exécutant directement, `scripts/` passe en tête de
+  `sys.path` et masque le paquet `ingest/` du même nom (`ModuleNotFoundError:
+  'ingest' is not a package`). Aucun test ne l'avait détecté (aucun ne lance le
+  script comme processus séparé). Renommé `run_ingest.py`.
+- Constaté sur le vrai serveur Chroma (`make up`) avec les vraies clés Azure :
+  **400 chunks** dans `sorabel_corpus`, vecteurs de dimension **1536**
+  (`text-embedding-3-small`), ingestion complète en **~11-13 s**.
+- Idempotence vérifiée sur le vrai serveur : seconde exécution de `make ingest`,
+  compte inchangé à 400.
+- Couverture : 33 tests (28 unitaires + 5 d'intégration sur les 400 vrais fichiers,
+  Chroma éphémère + embedder factice — ni Docker ni réseau requis en CI). `ruff` et
+  `mypy` propres (ajout de `types-Markdown` en dépendance dev, absent du plan
+  initial).
+- Reste ouvert : `tests/acceptance/` et `tests/conftest.py` encodent le contrat de
+  `docs/cadrage_dsi.md` (document retiré par le formateur) — à trancher avec lui
+  avant le chantier MCP.
+
 ## 2026-09-01 — Bascule en implémentation : branches, embeddings Azure, premiers modèles ingest
 
 - **Branches** : passage de `main` seul à `main` + `dev`. `.github/workflows/quality.yml`

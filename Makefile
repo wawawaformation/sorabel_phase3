@@ -7,7 +7,7 @@ seed:
 	uv run python scripts/seed.py
 
 ingest:
-	uv run python scripts/ingest.py
+	uv run python scripts/run_ingest.py
 
 up:
 	docker compose up -d
