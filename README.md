@@ -26,11 +26,10 @@ serveur et ses tools ne tiennent pas ce contrat, une fois fixé.
 - SQLite pour la base (`data/sorabel.db`, générée par le seed, à ouvrir en lecture seule)
 - SDK MCP (`mcp`) pour le serveur et le client stdio
 - `pypdf` / `beautifulsoup4` pour l'extraction du corpus, `rank-bm25` pour la piste lexicale
-- `sentence-transformers` disponible via l'extra `vector` :
+- Embeddings via Azure AI Foundry (`openai`, endpoint compatible `/openai/v1`) — pas de modèle local
 
 ```bash
 uv sync                       # cœur + outils de dev
-uv sync --extra vector        # + sentence-transformers
 ```
 
 ## Démarrage
