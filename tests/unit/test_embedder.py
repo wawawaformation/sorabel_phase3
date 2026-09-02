@@ -1,7 +1,8 @@
 from datetime import date
 
+from gateway.embedder import embed_in_batches
 from ingest.chunk import Chunk
-from ingest.embedder import embed_in_batches, embedding_text
+from ingest.embedder import embedding_text
 
 
 class FakeEmbedder:

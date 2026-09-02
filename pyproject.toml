@@ -27,7 +27,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ingest*", "retrieval*", "sql*", "mcp_server*"]
+include = ["gateway*", "ingest*", "retrieval*", "sql*", "mcp_server*"]
 
 [build-system]
 requires = ["setuptools>=68"]

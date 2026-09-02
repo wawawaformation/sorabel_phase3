@@ -2,8 +2,9 @@ from datetime import date
 
 import chromadb
 
+from gateway.chroma import open_collection
 from ingest.chunk import Chunk
-from ingest.store import chroma_metadata, open_collection, upsert_chunks
+from ingest.store import chroma_metadata, upsert_chunks
 
 
 def _chunk(chunk_id: str, ref: str | None) -> Chunk:

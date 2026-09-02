@@ -10,7 +10,7 @@ import chromadb
 import pytest
 
 from ingest.pipeline import ingest_corpus
-from ingest.store import open_collection
+from gateway.chroma import open_collection
 
 CORPUS = Path("data/corpus")
 

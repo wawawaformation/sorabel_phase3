@@ -7,10 +7,10 @@ Nommé run_ingest.py (pas ingest.py) : ce dernier, exécuté directement, se
 retrouverait en tête de sys.path et masquerait le paquet ingest/ du même nom.
 """
 
-from ingest.embedder import AzureEmbedder
+from gateway.chroma import chroma_client, open_collection
+from gateway.embedder import AzureEmbedder
+from gateway.settings import get_settings
 from ingest.pipeline import ingest_corpus
-from ingest.settings import get_settings
-from ingest.store import chroma_client, open_collection
 
 
 def main() -> None:

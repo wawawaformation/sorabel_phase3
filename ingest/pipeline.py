@@ -9,10 +9,11 @@ from pathlib import Path
 
 from chromadb.api.models.Collection import Collection
 
+from gateway.embedder import Embedder, embed_in_batches
 from ingest.build import EXTRACTORS_BY_SUFFIX, build_document
 from ingest.chunk import Chunk
 from ingest.chunking import to_chunks
-from ingest.embedder import Embedder, embed_in_batches, embedding_text
+from ingest.embedder import embedding_text
 from ingest.errors import IngestionError
 from ingest.store import upsert_chunks
 
