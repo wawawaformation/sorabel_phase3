@@ -2,6 +2,48 @@
 
 Tâches réalisées, plus récentes en premier. Décisions de conception : voir `conception/` et son propre `CHANGELOG.md` (racine du projet).
 
+## 2026-09-03 — Text-to-SQL opérationnel : génération, barrières, tools figés
+
+- `sql/` construit selon `docs/spec_sql.md` et `docs/plan_sql.md` (11 tâches, TDD) :
+  `access.py` (règles d'accès injectées), `descriptions.py` (documentation métier
+  transposée de `docs/schema.sql`), `schema.py` (introspection `PRAGMA` + correspondance
+  mois/millésime), `guard.py` (connexions, authorizer, validation, `LIMIT`, délai),
+  `generate.py` (génération structurée + détection d'écriture), `tools.py` (`check_stock`,
+  `order_status`), `trace.py` (journal + alerte dupliquée), `engine.py` (`SqlEngine`,
+  orchestration).
+- `SqlEngine(profile, access_rules, trace, llm_client, settings)` : profil et règles
+  d'accès **injectés au constructeur**, jamais en paramètre de méthode — même principe que
+  `SearchEngine` pour le RAG, ce qui rend le profil non falsifiable par un appelant de tool.
+- **Deux connexions SQLite aux rôles séparés**, découverte faite en vérifiant la spec
+  contre le vrai moteur : `PRAGMA` déclenche `SQLITE_PRAGMA`, hors de l'allowlist de
+  l'authorizer d'exécution. L'introspection (`get_schema`, correspondance mois/millésime)
+  utilise donc une connexion sans authorizer, qui n'exécute que du SQL écrit par nous.
+- **Authorizer en allowlist** (`SQLITE_SELECT` + `SQLITE_READ` + `SQLITE_FUNCTION`, deny
+  par défaut), déterminée en instrumentant dix formes de requêtes légitimes. Une liste
+  noire de colonnes sensibles seule laissait passer les `UPDATE` — vérifié avant correction.
+- **Fuite de schéma par `sqlite_master` corrigée** : sans règle dédiée, `SELECT name, sql
+  FROM sqlite_master` retournait le `CREATE TABLE` complet au profil `support`, révélant
+  l'existence des colonnes sensibles malgré leur filtrage dans `get_schema`. Toute lecture
+  de table `sqlite_%` est désormais refusée par l'authorizer.
+- **Mois sans année résolu côté code, pas deviné par le modèle** : « combien de commandes
+  en avril ? » est ambigu sans contexte de dates additionnel, mais le comportement du
+  modèle sans ce contexte s'est avéré instable (devinette silencieuse ou refus au
+  raisonnement faux selon le prompt). Le code calcule désormais, par introspection des
+  données, le millésime de chaque mois présent (avril -> 2026, octobre -> 2025) et
+  l'injecte comme un fait dans le prompt de génération.
+- **Détection d'intention d'écriture avant l'appel LLM** (`code="FORBIDDEN"`), dupliquée
+  dans un fichier d'alerte dédié (`logs/tentatives_ecriture.jsonl`) en plus du journal
+  unique — décision prise après relecture manuelle des points ouverts de la spec.
+- **`tests/acceptance/test_sql.py` et `tests/conftest.py`, lus mais pas modifiés** :
+  `conftest.py::TOOLS_BY_PROFILE` masque `get_schema` au profil `support`, ce qui reprend
+  la matrice de `docs/cadrage_dsi.md` déjà écartée — la conception (get_schema appelable
+  par les deux profils, contenu filtré) fait autorité ; `SqlEngine.get_schema()` suit donc
+  la conception, et l'alignement de `conftest.py` reste au Chantier 3.
+- Mesure sur `eval/questions_sql.jsonl` (`make eval-sql`, `eval/rapport_sql.md`) :
+  **24/24 questions conformes** — 12 `metier` (10 exécutées, 2 en clarification légitime
+  sur une période non précisée), 4 `ecriture` refusées avant tout appel LLM, 4
+  `table_interdite` refusées, 2 `hors_schema` refusées, 2 `ambigue` en clarification.
+
 ## 2026-09-02 — Retrieval hybride + rerank opérationnel, agent de démo
 
 - `retrieval/` construit selon `docs/spec_retrieval.md` et `docs/plan_retrieval.md` (11
