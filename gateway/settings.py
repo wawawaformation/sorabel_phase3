@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     # grand k -> la présence dans plusieurs classements domine (tests/unit/test_fusion.py)
     rrf_k: int = 60
 
+    # --- Text-to-SQL : accès à la base et garde-fous (sql/) ---
+    sqlite_path: Path = Path("data/sorabel.db")  # généré par make seed, jamais modifié
+    sql_default_limit: int = 100  # LIMIT des requêtes de liste ; LIMIT+1 interrogé en interne
+    sql_timeout_s: float = 5.0  # délai maximal d'exécution, via set_progress_handler
+    # Duplication des seules tentatives d'écriture, pour surveillance directe (spec § 4.11).
+    # Le journal MCP unique reste la source de vérité, ce fichier n'en est qu'une vue.
+    sql_alert_log: Path = Path("logs/tentatives_ecriture.jsonl")
+
     @property
     def azure_models_base_url(self) -> str:
         """Base des modèles non-OpenAI (rerank) : l'endpoint sans le suffixe /openai/v1."""

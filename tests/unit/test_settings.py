@@ -16,6 +16,16 @@ def test_valeurs_par_defaut():
     assert s.rrf_k == 60
 
 
+def test_valeurs_par_defaut_sql():
+    # Les réglages SQL sont de la config interne, jamais des paramètres de tool
+    # (conception : « config interne, pas un paramètre »).
+    settings = Settings(_env_file=None)
+    assert settings.sqlite_path == Path("data/sorabel.db")
+    assert settings.sql_default_limit == 100
+    assert settings.sql_timeout_s == 5.0
+    assert settings.sql_alert_log == Path("logs/tentatives_ecriture.jsonl")
+
+
 def test_base_url_des_modeles_non_openai():
     # Le rerank vit sous /models, pas sous /openai/v1 : la propriété retire ce suffixe.
     s = Settings(_env_file=None, azure_ai_endpoint="https://x.services.ai.azure.com/openai/v1")
