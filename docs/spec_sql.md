@@ -601,6 +601,30 @@ sql_timeout_s: float = 5.0          # délai maximal, via set_progress_handler
 Le seuil de `LIMIT` et le délai sont de la configuration interne, jamais des paramètres de
 tool (conception : « config interne, pas un paramètre »).
 
+### 4.11 Détection d'écriture avant appel LLM, tracée à part
+
+§ 2.11 montre que le modèle classe déjà une demande d'écriture (« supprime les commandes de
+test ») en `OUT_OF_SCHEMA` — fonctionnellement correct, mais indiscernable dans le journal
+d'une vraie question hors périmètre (météo, PDG). Or E5 (journalisation) a de la valeur en
+tant que surface de surveillance, pas seulement de conformité : une tentative d'écriture
+mérite d'être identifiable comme telle, pas noyée avec des questions simplement mal posées.
+
+Décision : `generate.py` détecte les mots-clés d'écriture (`INSERT`, `UPDATE`, `DELETE`,
+`DROP`, `ALTER`, `CREATE`, `REPLACE`, `ATTACH`, `DETACH` — la même liste que la validation
+structurale § 3.3 étape 4) dans la question, **avant** l'appel LLM. Si détecté :
+`code="FORBIDDEN"` (déjà prévu dans l'enveloppe de journal de la conception, jamais utilisé
+côté SQL jusqu'ici), sans appeler le modèle. Sinon, comportement inchangé — le LLM reste le
+filet pour les tentatives moins explicites qu'une recherche de mots-clés raterait, et
+continue de les classer `OUT_OF_SCHEMA`.
+
+Chaque entrée `FORBIDDEN` est écrite deux fois : dans `logs/mcp_audit.jsonl` (le journal
+unique, source de vérité — conception § « Journal MCP unique ») et, en duplication, dans un
+second fichier dédié à ces seules entrées (ex. `logs/tentatives_ecriture.jsonl`), pensé pour
+une surveillance directe (`tail -f`) sans avoir à filtrer le journal général. Ce second
+fichier n'est jamais une source primaire : en cas de divergence, le journal unique fait foi.
+`TraceRecorder` (§ 4.7) écrit dans les deux à chaque entrée `FORBIDDEN` ; aucun autre
+statut n'y est dupliqué.
+
 ---
 
 ## 5. Tests
@@ -676,23 +700,27 @@ réels : combien de `metier` produisent du SQL exécutable, combien d'`ecriture`
 
 ## 8. Points ouverts
 
-Deux points que la conception laissait ouverts sont tranchés par la lecture du test
-d'acceptance fourni (§ 2.13) et par les mesures de § 2.12 : le traitement des mois sans
-année (§ 4.5) et la présence du SQL dans la réponse (§ 4.9). Restent :
+Discutés et résolus après relecture de la spec (2026-09-03). Le raisonnement complet reste
+ci-dessous pour mémoire ; seule la décision finale compte pour l'implémentation.
 
-1. **Statut des demandes d'écriture.** Le modèle les classe `OUT_OF_SCHEMA`, ce qui est
-   fonctionnellement correct (aucun SQL n'est généré, donc rien à refuser en aval) mais
-   imprécis dans la trace : une demande de suppression et une question sur la météo n'ont
-   pas la même signification en audit. Faut-il un statut distinct dans le journal ? La
-   conception mentionne un code `FORBIDDEN` qui pourrait convenir. **Sans incidence sur
-   l'architecture** — à trancher au moment d'écrire la journalisation.
-2. **Enveloppe exacte des réponses de tool.** `tests/acceptance/test_sql.py` attend
-   `{status, payload, message}` avec `payload.rows` en positionnel, alors que la conception
-   décrit `result: [dict, ...]`. Cette enveloppe vient du contrat de `docs/cadrage_dsi.md`,
-   écarté par le formateur — c'est donc au Chantier 3 (qui construit l'enveloppe) de
-   trancher, pas à ce chantier. `SqlEngine` retourne des objets Python typés ; la
-   sérialisation est en aval.
-3. **Adaptation de `tests/acceptance/` et `tests/conftest.py`**, point déjà ouvert depuis
-   le chantier RAG : ces fichiers encodent le contrat écarté. Ils resteront rouges jusqu'au
-   Chantier 3 de toute façon, mais leur alignement mérite une décision explicite avec le
-   formateur avant ce chantier-là.
+1. **Statut des demandes d'écriture — résolu, voir § 4.11.** Détection par mots-clés avant
+   l'appel LLM, `code="FORBIDDEN"`, journal unique + fichier d'alerte dédié dupliqué
+   (`logs/tentatives_ecriture.jsonl`). Le LLM reste le filet pour les tentatives implicites,
+   toujours classées `OUT_OF_SCHEMA` comme mesuré en § 2.11.
+
+2. **Enveloppe exacte des réponses de tool — reste au Chantier 3.**
+   `tests/acceptance/test_sql.py` attend `{status, payload, message}` avec `payload.rows`
+   en positionnel, la conception décrit `result: [dict, ...]`. Cette enveloppe vient du
+   contrat de `docs/cadrage_dsi.md`, écarté par le formateur. `SqlEngine` retourne des
+   objets Python typés (`AskDatabaseResult`) ; la sérialisation JSON — quelle que soit la
+   forme retenue — est un problème du Chantier 3, pas de ce chantier.
+
+3. **Divergence `tests/conftest.py` / conception — la conception fait autorité.**
+   `TOOLS_BY_PROFILE` (dans `conftest.py`) exclut `get_schema` du profil `support` ;
+   `tools_sql_mcp.md` dit au contraire que `get_schema()` est appelable par les deux
+   profils, seul son contenu étant filtré. Décision : **la conception validée l'emporte sur
+   l'artefact du scaffold.** `SqlEngine.get_schema()` reste appelable quel que soit le
+   profil injecté, avec un résultat filtré pour `support` — jamais un refus d'appel.
+   L'alignement de `tests/conftest.py` lui-même reste un chantier d'écriture à part
+   (Chantier 3, le fichier restant rouge d'ici là de toute façon), mais la direction est
+   actée : c'est `conftest.py` qui devra changer, pas `sql/`.
