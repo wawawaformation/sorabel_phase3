@@ -44,8 +44,16 @@ def open_introspection(path: Path) -> sqlite3.Connection:
     Sans authorizer parce que ``PRAGMA`` déclenche ``SQLITE_PRAGMA``, hors allowlist
     (vérifié, spec § 2.5). Le risque est nul : cette connexion n'exécute que des
     ``PRAGMA`` dont notre code écrit le texte, et reste en lecture seule.
+
+    ``check_same_thread=False`` : sqlite3 refuse par défaut qu'une connexion soit
+    utilisée hors du thread qui l'a créée — problème réel avec un appelant qui met en
+    cache l'objet (ex. ``@st.cache_resource`` de Streamlit, dont le modèle d'exécution
+    peut rejouer un script sur un thread différent à chaque interaction). Sûr ici :
+    l'accès reste séquentiel (jamais deux threads en même temps sur cette connexion),
+    seul le contrôle d'affinité de thread de Python est levé — aucune des barrières de
+    sécurité (mode=ro, authorizer) n'en dépend.
     """
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
 
 
 def open_execution(
@@ -57,9 +65,12 @@ def open_execution(
     les trois codes d'``ALLOWED_ACTIONS``. C'est délibéré — une liste noire laisse
     passer ce qu'on n'a pas pensé à énumérer, et un authorizer qui ne refusait que des
     colonnes sensibles laissait effectivement passer les ``UPDATE`` (spec § 2.3).
+
+    ``check_same_thread=False`` pour la même raison que ``open_introspection`` — voir
+    sa docstring.
     """
     hidden = access_rules.hidden_columns(profile)
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
     connection.execute("PRAGMA query_only = ON")  # avant l'authorizer, qui refuse PRAGMA
 
     def authorize(action: int, arg1: str | None, arg2: str | None,

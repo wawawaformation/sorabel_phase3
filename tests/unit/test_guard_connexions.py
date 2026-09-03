@@ -1,5 +1,6 @@
 import shutil
 import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
@@ -122,3 +123,37 @@ def test_le_fichier_reste_intact_apres_toutes_ces_tentatives(db_path, tmp_path):
             con.execute(sql)
     con.close()
     assert db_path.read_bytes() == reference.read_bytes()
+
+
+def _run_in_thread(fn) -> Exception | None:
+    """Exécute fn() dans un thread séparé, retourne l'exception levée (ou None)."""
+    erreur: list[Exception] = []
+
+    def cible() -> None:
+        try:
+            fn()
+        except Exception as exc:  # noqa: BLE001 — on veut capturer n'importe quelle exception
+            erreur.append(exc)
+
+    thread = threading.Thread(target=cible)
+    thread.start()
+    thread.join()
+    return erreur[0] if erreur else None
+
+
+def test_connexion_execution_utilisable_depuis_un_autre_thread(db_path):
+    # Reproduit le bug observé avec Streamlit : @st.cache_resource construit le moteur
+    # dans un thread, un rerun ultérieur peut réutiliser la connexion depuis un autre
+    # thread. Par défaut, sqlite3 refuse ("SQLite objects created in a thread can only
+    # be used in that same thread") — check_same_thread=False lève cette restriction,
+    # sûr ici car les connexions sont en lecture seule et l'accès reste séquentiel,
+    # jamais concurrent (pas de vrai partage simultané entre threads).
+    con = open_execution(db_path, StaticAccessRules(), "commercial")
+    erreur = _run_in_thread(lambda: con.execute("SELECT ref, nom FROM produits").fetchall())
+    assert erreur is None, f"utilisable depuis un autre thread : {erreur}"
+
+
+def test_connexion_introspection_utilisable_depuis_un_autre_thread(db_path):
+    con = open_introspection(db_path)
+    erreur = _run_in_thread(lambda: con.execute("PRAGMA table_info(produits)").fetchall())
+    assert erreur is None, f"utilisable depuis un autre thread : {erreur}"
