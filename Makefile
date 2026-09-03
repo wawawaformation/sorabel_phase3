@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest demo ui eval eval-sql test fmt lint serve client journal
+.PHONY: install up down seed ingest demo ui ui-sql eval eval-sql test fmt lint serve client journal
 
 install:
 	uv sync
@@ -14,6 +14,9 @@ demo:
 
 ui:
 	uv run streamlit run app.py
+
+ui-sql:
+	uv run streamlit run app_sql.py
 
 eval:
 	uv run python scripts/eval_rag.py
