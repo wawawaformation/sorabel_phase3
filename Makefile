@@ -1,4 +1,4 @@
-.PHONY: install up down seed ingest demo ui eval test fmt lint serve client journal
+.PHONY: install up down seed ingest demo ui eval eval-sql test fmt lint serve client journal
 
 install:
 	uv sync
@@ -17,6 +17,9 @@ ui:
 
 eval:
 	uv run python scripts/eval_rag.py
+
+eval-sql:
+	uv run python scripts/eval_sql.py
 
 up:
 	docker compose up -d
