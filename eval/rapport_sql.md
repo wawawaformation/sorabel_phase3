@@ -51,8 +51,7 @@ toute modification est écrasée à la prochaine exécution.
 ```sql
 SELECT COUNT(*) AS nombre_commandes
 FROM commandes
-WHERE date_commande >= '2026-04-01'
-  AND date_commande < '2026-05-01';
+WHERE date_commande >= '2026-04-01' AND date_commande < '2026-05-01';
 ```
 
 **SQL-02** — quel est le stock total de la REF-8842 ?
@@ -66,7 +65,12 @@ WHERE s.ref = 'REF-8842';
 **SQL-03** — liste des commandes livrées en juin 2026
 
 ```sql
-SELECT id, client_id, date_commande, statut, montant_ht FROM commandes WHERE statut = 'livree' AND date_commande >= '2026-06-01' AND date_commande < '2026-07-01' LIMIT 101
+SELECT c.id, c.client_id, c.date_commande, c.statut, c.montant_ht
+FROM commandes AS c
+WHERE c.statut = 'livree'
+  AND c.date_commande >= '2026-06-01'
+  AND c.date_commande < '2026-07-01'
+ORDER BY c.date_commande, c.id LIMIT 101
 ```
 
 **SQL-05** — combien de clients à Lille ?
@@ -82,16 +86,15 @@ WHERE ville = 'Lille';
 ```sql
 SELECT SUM(c.montant_ht) AS montant_total_commandes
 FROM commandes AS c
-WHERE c.date_commande >= '2026-03-01'
-  AND c.date_commande < '2026-04-01';
+WHERE c.date_commande >= '2026-03-01' AND c.date_commande < '2026-04-01';
 ```
 
 **SQL-07** — quelles références sont sous leur seuil de réapprovisionnement à LYON ?
 
 ```sql
-SELECT p.ref, p.nom, s.quantite, s.seuil_reappro
-FROM stocks AS s
-JOIN produits AS p ON p.ref = s.ref
+SELECT DISTINCT p.ref
+FROM produits p
+JOIN stocks s ON s.ref = p.ref
 WHERE s.entrepot = 'LYON'
   AND s.quantite < s.seuil_reappro
 ORDER BY p.ref LIMIT 101
@@ -100,7 +103,9 @@ ORDER BY p.ref LIMIT 101
 **SQL-08** — statut de la commande CMD-2026-0042
 
 ```sql
-SELECT statut FROM commandes WHERE id = 'CMD-2026-0042' LIMIT 101
+SELECT c.statut
+FROM commandes AS c
+WHERE c.id = 'CMD-2026-0042' LIMIT 101
 ```
 
 **SQL-09** — combien de commandes annulées depuis janvier 2026 ?

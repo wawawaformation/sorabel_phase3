@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # Le journal MCP unique reste la source de vérité, ce fichier n'en est qu'une vue.
     sql_alert_log: Path = Path("logs/tentatives_ecriture.jsonl")
 
+    # --- Observabilité LLM (Langfuse Cloud) : uniquement la génération SQL pour l'instant ---
+    # Le wrapper langfuse.openai patche openai.OpenAI globalement au process (pas par
+    # instance) : ne l'importer que dans un script qui ne construit pas d'autre client
+    # OpenAI (embeddings RAG comprises) tant qu'un seul process ne mélange pas les deux.
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://cloud.langfuse.com"
+
     @property
     def azure_models_base_url(self) -> str:
         """Base des modèles non-OpenAI (rerank) : l'endpoint sans le suffixe /openai/v1."""

@@ -5,13 +5,22 @@
 Appelle le vrai modèle (réseau, facturation) : ce script n'est pas dans la suite de
 tests. Chaque question porte son propre profil dans le jeu d'évaluation — les questions
 de type table_interdite sont posées en `support`, c'est ce qui les rend interdites.
+
+Observabilité : chaque appel de génération SQL est tracé sur Langfuse Cloud (question,
+prompt système, réponse structurée, usage tokens). Le client Langfuse est construit
+explicitement avec les credentials de `Settings` (pas une lecture implicite de
+`os.environ`, cohérent avec le reste du projet) avant d'importer `langfuse.openai` :
+ce module patche `openai.OpenAI` globalement au process, pas par instance — ce script
+ne doit donc pas être importé dans un process qui construit aussi un client OpenAI pour
+autre chose (embeddings RAG comprises), sous peine de les tracer aussi.
 """
 
 import json
 from collections import defaultdict
 from pathlib import Path
 
-from openai import OpenAI
+from langfuse import Langfuse
+from langfuse.openai import OpenAI
 
 from gateway.settings import get_settings
 from sql.access import StaticAccessRules
@@ -50,6 +59,14 @@ def build_engine(profile: str, settings, client) -> SqlEngine:
 
 def main() -> None:
     settings = get_settings()
+    # Enregistre le singleton Langfuse avec nos credentials explicites AVANT le premier
+    # appel réel — get_client() (interne au wrapper importé plus haut) le retrouve
+    # ensuite tout seul, sans lecture implicite de os.environ.
+    langfuse_client = Langfuse(
+        public_key=settings.langfuse_public_key,
+        secret_key=settings.langfuse_secret_key,
+        host=settings.langfuse_base_url,
+    )
     client = OpenAI(base_url=settings.azure_ai_endpoint, api_key=settings.azure_ai_api_key)
     engines = {
         profil: build_engine(profil, settings, client)
@@ -120,6 +137,10 @@ def main() -> None:
 
     REPORT_FILE.write_text("\n".join(parties) + "\n", encoding="utf-8")
     print(f"\nRapport écrit dans {REPORT_FILE}")
+
+    # Un script court-vécu peut se terminer avant l'envoi asynchrone des traces :
+    # flush explicite pour ne pas en perdre en sortie de process.
+    langfuse_client.flush()
 
 
 if __name__ == "__main__":

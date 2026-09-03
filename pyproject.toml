@@ -15,6 +15,7 @@ dependencies = [
     "rank-bm25>=0.2,<0.3",
     "openai>=1.50,<2",
     "streamlit>=1.38,<2",
+    "langfuse>=4.15.1",
 ]
 
 [dependency-groups]
