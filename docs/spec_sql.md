@@ -57,9 +57,17 @@ CMD-2026-0042     0 ligne — la commande du jeu d'éval n'existe effectivement 
 REF-8842          stocks LILLE 247 / LYON 100 / NANTES 427  (total 774)
 ```
 
-Le fichier fourni est `brief/data/data/sorabel.db`. Il doit être copié dans
-`data/sorabel.db` du dépôt d'implémentation (même logique que le corpus RAG : les données
-arrivent en phase de développement).
+**Provisionnement : `make seed`, pas une copie.** `scripts/seed.py` existait déjà dans le
+dépôt et régénère `data/sorabel.db` de façon déterministe (graine fixe 8842). Vérifié : la
+base ainsi produite est **fonctionnellement identique** au fichier fourni
+`brief/data/data/sorabel.db` — mêmes volumes, même plage de dates, mêmes stocks par
+entrepôt, et jusqu'à la somme de tous les montants de commandes au centime
+(4 816 972,76 €) et au texte exact des `CREATE TABLE`. Seule l'empreinte MD5 diffère, du
+fait de la structure interne des pages SQLite, pas du contenu.
+
+Tous les chiffres ci-dessus valent donc pour la base issue de `make seed`, qui est le
+chemin de provisionnement retenu (`tests/conftest.py` l'indique déjà : « data/sorabel.db
+absente — lancer `make seed` d'abord »).
 
 ### 2.2 Le schéma **et** les relations sont introspectables
 
@@ -401,12 +409,13 @@ sql/
 ├── guard.py          les barrières : connexions, authorizer, validation, LIMIT, délai
 ├── generate.py       contexte de génération + appel LLM structuré (§ 2.11)
 ├── tools.py          check_stock, order_status — SQL figé paramétré
+├── trace.py          TraceRecorder (Protocol) + écriture JSONL, journal + alertes (§ 4.7, § 4.11)
 └── engine.py         SqlEngine — orchestration, point d'entrée unique
 ```
 
 Un module = une responsabilité, testable seul. `guard.py` est le seul à ouvrir des
-connexions ; `generate.py` est le seul à appeler le LLM ; `engine.py` ne fait
-qu'enchaîner.
+connexions ; `generate.py` est le seul à appeler le LLM ; `trace.py` est le seul à
+écrire sur disque ; `engine.py` ne fait qu'enchaîner.
 
 ### 3.2 Injection : profil et règles d'accès
 
@@ -644,7 +653,7 @@ Point d'attention appris à mes dépens pendant les vérifications : un test qui
 DDL doit travailler sur une base **neuve**, jamais partagée — un `DROP TABLE` réussi dans
 un test pollue silencieusement tous les suivants.
 
-**Intégration, vraie base copiée.** `get_schema()` couvre les 5 tables et 4 relations
+**Intégration, vraie base (`make seed`).** `get_schema()` couvre les 5 tables et 4 relations
 réelles, filtre effectivement les 3 colonnes sensibles pour `support` et les expose pour
 `commercial` ; `check_stock("REF-8842")` retourne 774 réparti sur 3 entrepôts ;
 `order_status("CMD-2026-0042")` retourne `found: false` sans erreur. Aucun appel LLM à ce
