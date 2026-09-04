@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-[ -f data/sorabel.db ] || uv run python scripts/seed.py
-uv run python scripts/ensure_ingested.py
+[ -f data/sorabel.db ] || uv run --no-dev python scripts/seed.py
+uv run --no-dev python scripts/ensure_ingested.py
 
-exec uv run python -m mcp_server.http_server
+exec uv run --no-dev python -m mcp_server.http_server

@@ -52,6 +52,34 @@ uv run python scripts/mcp_client.py --profile support --tool search_docs --args 
 uv run python scripts/mcp_client.py --profile commercial --tool ask_database --args '{"question": "combien de commandes en avril ?"}'
 ```
 
+### Déploiement complet (HTTP + Keycloak)
+
+```bash
+docker compose up --build
+```
+
+Démarre Chroma, Keycloak (royaume `sorabel` importé automatiquement, deux comptes de
+démo `commercial-demo`/`support-demo`, mot de passe `demo`) et la gateway HTTP
+(`http://localhost:8090/mcp`), provisionnée automatiquement (base + index) au premier
+démarrage. Voir `docs/spec_deploiement.md` pour le détail. **Royaume de démo
+uniquement** — mots de passe en clair dans `docker/keycloak/sorabel-realm.json`,
+jamais pour un déploiement réel.
+
+Exemple d'appel (récupère un token Keycloak puis appelle la gateway) :
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8180/realms/sorabel/protocol/openid-connect/token \
+  -d "client_id=sorabel-gateway" -d "grant_type=password" \
+  -d "username=commercial-demo" -d "password=demo" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+
+curl -s -X POST http://localhost:8090/mcp \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"check_stock","arguments":{"ref":"REF-8842"}}}'
+```
+
 ## Layout
 
 ```
@@ -66,10 +94,17 @@ eval/
 ingest/               # chaîne d'ingestion du corpus
 retrieval/            # recherche documentaire hybride (SearchEngine)
 sql/                  # accès SQL en langage naturel (SqlEngine)
-mcp_server/           # serveur MCP de la gateway (matrice, catalogue, enveloppe, server.py)
+mcp_server/           # serveur MCP de la gateway
+  server.py           # stdio, profil via SORABEL_PROFILE (mode démo, cible tests/acceptance)
+  http_server.py       # HTTP, profil résolu par requête via un JWT Keycloak (déploiement)
 scripts/
   seed.py             # génère et peuple data/sorabel.db
   mcp_client.py       # client MCP de test (profils support / commercial)
+  ensure_ingested.py  # ingestion idempotente, appelée au démarrage du conteneur gateway
 app_gateway.py        # démo Streamlit du serveur MCP complet
+docker/
+  entrypoint.sh       # point d'entrée du conteneur gateway (seed + ingest + serveur HTTP)
+  keycloak/sorabel-realm.json  # royaume de démo importé au démarrage de Keycloak
+Dockerfile             # image du service gateway (docker-compose)
 tests/acceptance/     # suite d'acceptance boîte noire, adossée aux exigences E1–E6
 ```
