@@ -63,6 +63,13 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
 
+    # --- Serveur MCP HTTP + IdP Keycloak (mcp_server/http_server.py) ---
+    keycloak_issuer: str = "http://localhost:8180/realms/sorabel"
+    keycloak_audience: str = "sorabel-gateway"  # = azp attendu (Keycloak n'émet pas "aud"
+    # par défaut pour un client public sans mapper dédié — vérifié empiriquement)
+    http_host: str = "0.0.0.0"
+    http_port: int = 8080
+
     @property
     def azure_models_base_url(self) -> str:
         """Base des modèles non-OpenAI (rerank) : l'endpoint sans le suffixe /openai/v1."""

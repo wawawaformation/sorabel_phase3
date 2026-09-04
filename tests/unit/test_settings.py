@@ -40,6 +40,14 @@ def test_lecture_depuis_environnement(monkeypatch):
     assert s.rerank_enabled is False
 
 
+def test_reglages_keycloak_et_http_ont_des_valeurs_par_defaut():
+    settings = Settings(_env_file=None)
+    assert settings.keycloak_issuer
+    assert settings.keycloak_audience == "sorabel-gateway"
+    assert settings.http_host
+    assert settings.http_port > 0
+
+
 def test_variables_inconnues_ignorees(monkeypatch):
     monkeypatch.setenv("SORABEL_PROFILE", "support")
     monkeypatch.setenv("GATEWAY_JOURNAL", "logs/journal.jsonl")
