@@ -74,6 +74,7 @@ class SearchDocResult:
     chunk_id: str
     rank: int  # position dans le top-k, 1-indexed
     title: str
+    type_doc: str
     ref_produit: str | None
     version: str
     date: str
@@ -233,6 +234,7 @@ class SearchEngine:
                 chunk_id=chunk_id,
                 rank=rank,
                 title=by_id[chunk_id].title,
+                type_doc=by_id[chunk_id].type_doc,
                 ref_produit=by_id[chunk_id].ref_produit,
                 version=by_id[chunk_id].version,
                 date=by_id[chunk_id].date,

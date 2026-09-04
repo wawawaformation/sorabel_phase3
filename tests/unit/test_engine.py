@@ -110,6 +110,7 @@ def test_search_docs_brut_sans_dedup_ni_refus():
     # aucune déduplication en mode brut.
     assert "colis-v1.0#0" in ids or "colis-v2.0#0" in ids
     assert all(r.rrf_score is None for r in out.results)  # include_score=False par défaut
+    assert all(r.type_doc for r in out.results)
 
 
 def test_search_docs_rang_et_score_expose():
