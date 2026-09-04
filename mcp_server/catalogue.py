@@ -96,8 +96,8 @@ _INPUT_SCHEMAS: dict[str, dict] = {
     },
     "get_document": {
         "type": "object",
-        "properties": {"document_id": {"type": "string"}},
-        "required": ["document_id"],
+        "properties": {"doc_id": {"type": "string"}},
+        "required": ["doc_id"],
     },
     "list_sources": {
         "type": "object",

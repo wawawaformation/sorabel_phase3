@@ -27,18 +27,16 @@ DB_PATH = REPO_ROOT / "data" / "sorabel.db"
 SERVER_MODULE = "mcp_server.server"
 CALL_TIMEOUT = float(os.environ.get("GATEWAY_TEST_TIMEOUT", "30"))
 
-#: Catalogue et matrice d'accès imposés par docs/cadrage_dsi.md.
+#: Catalogue MCP (docs/spec_mcp.md § 3.1).
 ALL_TOOLS = (
     "answer_question", "search_docs", "get_document", "list_sources",
     "ask_database", "get_schema", "check_stock", "order_status",
 )
-TOOLS_BY_PROFILE = {
-    "support": {
-        "answer_question", "search_docs", "get_document", "list_sources",
-        "ask_database", "check_stock", "order_status",
-    },
-    "commercial": set(ALL_TOOLS),
-}
+# Aucun tool n'est interdit dans son intégralité à un profil (spec_mcp.md § 2, point
+# 1/4 : contrairement à la matrice de docs/cadrage_dsi.md, écartée — voir
+# CHANGELOG.md, 2026-09-01). La seule restriction réelle du système porte sur 3
+# colonnes SQL (sql/access.py:SENSITIVE_COLUMNS), pas sur l'accès à un tool.
+TOOLS_BY_PROFILE = {"support": set(ALL_TOOLS), "commercial": set(ALL_TOOLS)}
 
 
 def load_jsonl(name: str) -> list[dict]:

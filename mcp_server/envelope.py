@@ -73,7 +73,7 @@ def answer_question_envelope(
 def search_docs_envelope(response: SearchDocsResponse) -> Envelope:
     hits = [
         {
-            "doc_id": r.chunk_id,
+            "doc_id": r.document_id,
             "score": r.rrf_score,
             "text": r.content,
             "metadata": {

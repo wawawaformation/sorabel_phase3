@@ -107,7 +107,7 @@ async def _run(
         )
         return search_docs_envelope(docs)
     if name == "get_document":
-        return get_document_envelope(search_engine.get_document(arguments["document_id"]))
+        return get_document_envelope(search_engine.get_document(arguments["doc_id"]))
     if name == "list_sources":
         sources = search_engine.list_sources(
             arguments.get("collection"), arguments.get("type_doc"),

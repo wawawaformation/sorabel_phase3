@@ -2,34 +2,47 @@
 
 from __future__ import annotations
 
-from tests.conftest import ALL_TOOLS, TOOLS_BY_PROFILE, gateway_session, read_journal
+from tests.conftest import gateway_session, read_journal
 
 
-async def test_matrice_d_acces_respectee():
-    # E4 : un client au profil autorisé n'accède qu'aux tools prévus par la
-    # matrice ; tout tool hors matrice est refusé.
-    for profile, autorises in TOOLS_BY_PROFILE.items():
-        async with gateway_session(profile) as call:
-            for tool in ALL_TOOLS:
-                if tool in autorises:
-                    continue
-                result = await call(tool, {})
-                assert result["status"] == "refused", (
-                    f"{profile} ne doit pas accéder à {tool}"
-                )
+async def test_get_schema_filtre_les_colonnes_sensibles_pour_support():
+    # E4/E5 : get_schema est accessible aux deux profils (aucun tool n'est interdit
+    # dans son intégralité, spec_mcp.md § 2/§ 4.3) — mais son contenu est filtré :
+    # support ne voit jamais les 3 colonnes sensibles.
+    async with gateway_session("support") as call:
+        support_schema = await call("get_schema", {})
+    async with gateway_session("commercial") as call:
+        commercial_schema = await call("get_schema", {})
+
+    assert support_schema["status"] == "ok"
+    assert commercial_schema["status"] == "ok"
+
+    def colonnes(schema: dict) -> set[tuple[str, str]]:
+        return {
+            (t["name"], c["name"])
+            for t in schema["payload"]["tables"]
+            for c in t["columns"]
+        }
+
+    support_colonnes = colonnes(support_schema)
+    assert ("produits", "prix_achat_ht") not in support_colonnes
+    assert ("produits", "marge_pct") not in support_colonnes
+    assert ("ventes", "marge_ht") not in support_colonnes
+    assert ("produits", "prix_achat_ht") in colonnes(commercial_schema)
 
 
-async def test_refus_message_clair_et_journalise(journal_path):
-    # E4 + E5 : un appel non autorisé est refusé avec un message clair et
-    # journalisé.
+async def test_refus_donnee_message_clair_et_journalise(journal_path):
+    # E4 + E5 : un refus au niveau donnée (ici, colonne interdite via ask_database —
+    # déjà le cas déterministe de test_sql.py::test_profil_support_jamais_de_marge)
+    # est explicite et journalisé, même s'il n'existe aucun refus de tool entier.
     async with gateway_session("support", journal_path) as call:
-        result = await call("get_schema", {})
+        result = await call("ask_database", {"question": "quelle est la marge sur la REF-8842 ?"})
     assert result["status"] == "refused"
     assert result["message"].strip()
 
     entries = read_journal(journal_path)
     assert any(
-        e["profile"] == "support" and e["tool"] == "get_schema" and e["status"] == "refused"
+        e["profil"] == "support" and e["tool"] == "ask_database" and e["statut"] == "refused"
         for e in entries
     )
 
@@ -56,8 +69,10 @@ async def test_journal_exhaustif_autorises_et_refuses(journal_path):
     # refusés — figurent au journal.
     calls = [
         ("answer_question", {"question": "délai d'un échange standard ?"}),
-        ("check_stock", {"reference": "REF-8842"}),
-        ("get_schema", {}),  # hors matrice pour le profil support
+        ("check_stock", {"ref": "REF-8842"}),
+        # Refus au niveau donnée (colonne interdite) : aucun tool n'est refusé dans
+        # son intégralité dans ce MVP (spec_mcp.md § 4.3).
+        ("ask_database", {"question": "quelle est la marge sur la REF-8842 ?"}),
     ]
     async with gateway_session("support", journal_path) as call:
         for tool, arguments in calls:
@@ -66,6 +81,6 @@ async def test_journal_exhaustif_autorises_et_refuses(journal_path):
     entries = read_journal(journal_path)
     assert len(entries) == len(calls)
     assert [e["tool"] for e in entries] == [tool for tool, _ in calls]
-    statuses = {e["status"] for e in entries}
+    statuses = {e["statut"] for e in entries}
     assert "refused" in statuses
     assert statuses - {"refused"}, "le journal doit aussi tracer les appels autorisés"

@@ -84,13 +84,14 @@ def test_search_docs_envelope_porte_doc_type():
     from mcp_server.envelope import search_docs_envelope
 
     result = SearchDocResult(
-        chunk_id="REF-8842#0", rank=1, title="Fiche REF-8842", ref_produit="REF-8842",
-        version="2.1", date="2026-01-10", source="fiches/REF-8842.pdf", content="...",
-        rrf_score=None, type_doc="fiche_technique",
+        chunk_id="REF-8842#0", document_id="REF-8842", rank=1, title="Fiche REF-8842",
+        ref_produit="REF-8842", version="2.1", date="2026-01-10",
+        source="fiches/REF-8842.pdf", content="...", rrf_score=None, type_doc="fiche_technique",
     )
     env = search_docs_envelope(SearchDocsResponse(results=[result], query="x", retrieval_count=1))
     assert env.status == "ok"
     hit = env.payload["hits"][0]
+    assert hit["doc_id"] == "REF-8842"  # document_id, jamais le chunk_id interne
     assert hit["metadata"]["reference"] == "REF-8842"
     assert hit["metadata"]["doc_type"] == "fiche_technique"
 

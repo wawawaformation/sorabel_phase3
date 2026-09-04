@@ -26,7 +26,7 @@ def test_les_entrees_obligatoires_du_brief_sont_requises():
     assert tools["ask_database"].inputSchema["required"] == ["question"]
     assert tools["check_stock"].inputSchema["required"] == ["ref"]
     assert tools["order_status"].inputSchema["required"] == ["order_id"]
-    assert tools["get_document"].inputSchema["required"] == ["document_id"]
+    assert tools["get_document"].inputSchema["required"] == ["doc_id"]
     assert "required" not in tools["get_schema"].inputSchema
     assert "required" not in tools["list_sources"].inputSchema
 
