@@ -20,11 +20,11 @@ services:
     environment:
       - KC_BOOTSTRAP_ADMIN_USERNAME=admin
       - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
-      - KC_HOSTNAME=localhost
-      - KC_HOSTNAME_PORT=8180
+      - KC_HOSTNAME=${PUBLIC_HOSTNAME:-localhost}
+      - KC_HOSTNAME_PORT=${KEYCLOAK_PORT:-8180}
       - KC_HTTP_ENABLED=true
     ports:
-      - "8180:8080"
+      - "${KEYCLOAK_PORT:-8180}:8080"
     volumes:
       - ./docker/keycloak:/opt/keycloak/data/import
     healthcheck:
@@ -44,9 +44,13 @@ services:
     env_file: .env
     environment:
       - CHROMA_URL=http://chroma:8000
-      - KEYCLOAK_ISSUER=http://localhost:8180/realms/sorabel
+      - KEYCLOAK_ISSUER=http://${PUBLIC_HOSTNAME:-localhost}:${KEYCLOAK_PORT:-8180}/realms/sorabel
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=8080
+    # Utile seulement quand PUBLIC_HOSTNAME=localhost (poste de dev) : sans lui, le
+    # conteneur gateway ne se verrait pas lui-même à l'adresse qu'il vient de valider
+    # dans un jeton. Inoffensif sur un vrai déploiement (PUBLIC_HOSTNAME = domaine ou
+    # IP publique) : personne ne cherche à résoudre "localhost" dans ce cas.
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
