@@ -1,0 +1,43 @@
+# Matrice d'accès Sorabel — source déclarative unique (conception/3_MCP § 1.3).
+#
+# Aujourd'hui, la seule restriction réelle du système porte sur 3 colonnes SQL
+# (support). Aucun tool n'est interdit, aucune collection RAG n'est filtrée
+# (docs/spec_retrieval.md § "hors périmètre" : décision confirmée par le formateur).
+# Les dimensions tools/collections restent déclarées, complètes, pour rester lisibles
+# et extensibles sans re-concevoir la matrice — jamais pour combler une case vide.
+profiles:
+  support:
+    tools:
+      - answer_question
+      - search_docs
+      - get_document
+      - list_sources
+      - ask_database
+      - get_schema
+      - check_stock
+      - order_status
+    rag_collections:
+      - fiches_techniques
+      - notices
+      - procedures_sav
+      - notes
+    sql_hidden_columns:
+      - [produits, prix_achat_ht]
+      - [produits, marge_pct]
+      - [ventes, marge_ht]
+  commercial:
+    tools:
+      - answer_question
+      - search_docs
+      - get_document
+      - list_sources
+      - ask_database
+      - get_schema
+      - check_stock
+      - order_status
+    rag_collections:
+      - fiches_techniques
+      - notices
+      - procedures_sav
+      - notes
+    sql_hidden_columns: []
