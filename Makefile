@@ -48,4 +48,4 @@ client:
 	uv run python scripts/mcp_client.py --profile $${PROFILE:-support}
 
 journal:
-	@tail -n 20 logs/journal.jsonl 2>/dev/null || echo "journal vide"
+	@tail -n 20 logs/mcp_audit.jsonl 2>/dev/null || echo "journal vide"
