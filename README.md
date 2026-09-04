@@ -4,20 +4,21 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 
 ## Features
 
-- Recherche documentaire avancée sur le corpus : dense + lexicale (hybride), reranking, réponses sourcées (titre + référence + date), refus explicite hors corpus (à construire)
-- Accès aux données en langage naturel : génération SQL lecture seule, périmètre de tables par profil, requête toujours renvoyée avec le résultat (à construire)
-- Tools figés pour les besoins récurrents : `check_stock`, `order_status` (à construire)
-- Serveur MCP unique exposant tout le catalogue, sous matrice d'accès par profil (`support`, `commercial`) avec journalisation de chaque appel (à construire)
-- Données en place : base SQL générée par `scripts/seed.py`, corpus de ~400 documents, Chroma prête via docker compose (index encore vide)
-- Client MCP de test jouable avec les deux profils (`scripts/mcp_client.py`)
+- Recherche documentaire avancée sur le corpus : dense + lexicale (hybride), reranking, réponses sourcées (titre + référence + date), refus explicite hors corpus
+- Accès aux données en langage naturel : génération SQL lecture seule, périmètre de colonnes par profil, SQL tracé (jamais renvoyé au client, spec_mcp.md § 4.1)
+- Tools figés pour les besoins récurrents : `check_stock`, `order_status`
+- Serveur MCP unique exposant le catalogue de 8 tools, matrice d'accès par profil (`support`, `commercial`) avec journalisation de chaque appel
+- Données en place : base SQL générée par `scripts/seed.py`, corpus de ~400 documents indexé dans Chroma via docker compose
+- Client MCP de test jouable avec les deux profils (`scripts/mcp_client.py`), interface Streamlit de démo bout en bout (`app_gateway.py`)
 
 ## Contrat d'intégration
 
-Contrat d'intégration non fourni à ce stade — exigences E1–E6, matrice d'accès
-et enveloppes (réponse, journal) restent à définir en conception avant
-implémentation. La suite `tests/acceptance/` consomme la gateway en boîte
-noire, exactement comme un client interne : elle est rouge tant que le
-serveur et ses tools ne tiennent pas ce contrat, une fois fixé.
+`docs/spec_mcp.md` fixe le contrat implémenté : matrice réduite aux 3 colonnes SQL
+sensibles (aucun tool ni collection RAG n'est restreint, `docs/spec_retrieval.md` §
+« hors périmètre »), enveloppe double (`CallToolResult.isError`/`_meta` + JSON
+`{status, payload, message}`), SQL jamais renvoyé au client. La suite
+`tests/acceptance/` consomme la gateway en boîte noire, exactement comme un client
+interne, et passe intégralement contre ce contrat.
 
 ## Stack
 
@@ -38,9 +39,10 @@ uv sync                       # cœur + outils de dev
 make install      # uv sync
 make seed         # génère data/sorabel.db (déterministe, aligné sur le corpus)
 make up           # docker compose : Chroma sur localhost:8002
-make test         # suite d'acceptance (rouge tant que la gateway n'est pas construite)
+make test         # suite d'acceptance (unit + intégration + acceptance)
 make serve        # serveur MCP stdio (profil via SORABEL_PROFILE)
 make client       # client de test (PROFILE=support|commercial)
+make ui-gateway   # démo Streamlit passant par le vrai serveur MCP
 ```
 
 Exemples côté client :
@@ -61,12 +63,13 @@ docs/
 eval/
   questions_rag.jsonl # questions documentaires : couvertes, hors corpus, par référence exacte
   questions_sql.jsonl # questions métier en langage naturel, dont cas limites
-ingest/               # chaîne d'ingestion du corpus (à concevoir et construire)
-retrieval/            # recherche documentaire (à concevoir et construire)
-sql/                  # accès SQL en langage naturel (à concevoir et construire)
-mcp_server/           # serveur MCP de la gateway (à concevoir et construire)
+ingest/               # chaîne d'ingestion du corpus
+retrieval/            # recherche documentaire hybride (SearchEngine)
+sql/                  # accès SQL en langage naturel (SqlEngine)
+mcp_server/           # serveur MCP de la gateway (matrice, catalogue, enveloppe, server.py)
 scripts/
   seed.py             # génère et peuple data/sorabel.db
   mcp_client.py       # client MCP de test (profils support / commercial)
+app_gateway.py        # démo Streamlit du serveur MCP complet
 tests/acceptance/     # suite d'acceptance boîte noire, adossée aux exigences E1–E6
 ```
