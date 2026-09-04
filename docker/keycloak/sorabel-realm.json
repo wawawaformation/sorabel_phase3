@@ -1,0 +1,45 @@
+{
+  "realm": "sorabel",
+  "enabled": true,
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      {"name": "commercial"},
+      {"name": "support"}
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "sorabel-gateway",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "commercial-demo",
+      "enabled": true,
+      "email": "commercial-demo@sorabel.example",
+      "emailVerified": true,
+      "firstName": "Commercial",
+      "lastName": "Demo",
+      "requiredActions": [],
+      "credentials": [{"type": "password", "value": "demo", "temporary": false}],
+      "realmRoles": ["commercial"]
+    },
+    {
+      "username": "support-demo",
+      "enabled": true,
+      "email": "support-demo@sorabel.example",
+      "emailVerified": true,
+      "firstName": "Support",
+      "lastName": "Demo",
+      "requiredActions": [],
+      "credentials": [{"type": "password", "value": "demo", "temporary": false}],
+      "realmRoles": ["support"]
+    }
+  ]
+}
