@@ -72,6 +72,7 @@ class SearchOutcome:
 @dataclass(frozen=True)
 class SearchDocResult:
     chunk_id: str
+    document_id: str
     rank: int  # position dans le top-k, 1-indexed
     title: str
     type_doc: str
@@ -221,7 +222,17 @@ class SearchEngine:
         tools_rag_mcp.md § 2). Les métadonnées ne sont rapatriées de Chroma que pour
         les ``top_k`` résultats finalement retournés, pas pour tous les candidats
         fusionnés.
+
+        Le routing déterministe par référence (retrieval/routing.py) s'applique ici
+        aussi, pas seulement à ``search()`` : un classement dense/BM25 peut confondre
+        deux références lexicalement proches (``REF-8842`` / ``REF-8443``, découvert
+        via l'acceptance suite du chantier 3), alors que E2 exige une précision totale
+        sur une référence exacte, quel que soit le tool appelé.
         """
+        reference = detect_reference(query)
+        if reference is not None:
+            return self._search_docs_by_reference(reference, top_k)
+
         cfg = self._settings
         dense = dense_search(self._collection, self._embedder, query, cfg.dense_candidates)
         lexical = self._lexical.search(query, cfg.lexical_candidates)
@@ -232,6 +243,7 @@ class SearchEngine:
         results = [
             SearchDocResult(
                 chunk_id=chunk_id,
+                document_id=by_id[chunk_id].document_id,
                 rank=rank,
                 title=by_id[chunk_id].title,
                 type_doc=by_id[chunk_id].type_doc,
@@ -245,6 +257,29 @@ class SearchEngine:
             for rank, chunk_id in enumerate(top_ids, start=1)
         ]
         return SearchDocsResponse(results=results, query=query, retrieval_count=len(fused))
+
+    def _search_docs_by_reference(self, reference: str, top_k: int) -> SearchDocsResponse:
+        """Lookup déterministe pour search_docs — même filtre côté serveur que
+        ``_search_by_reference``, sans score RRF (aucune fusion n'a eu lieu)."""
+        candidates = load_chunks(self._collection, where={"ref_produit": reference})
+        found = lookup_by_reference(candidates, reference)[:top_k]
+        results = [
+            SearchDocResult(
+                chunk_id=chunk.chunk_id,
+                document_id=chunk.document_id,
+                rank=rank,
+                title=chunk.title,
+                type_doc=chunk.type_doc,
+                ref_produit=chunk.ref_produit,
+                version=chunk.version,
+                date=chunk.date,
+                source=chunk.source,
+                content=chunk.content,
+                rrf_score=None,
+            )
+            for rank, chunk in enumerate(found, start=1)
+        ]
+        return SearchDocsResponse(results=results, query=reference, retrieval_count=len(found))
 
     def search(self, question: str, top_k: int | None = None) -> SearchOutcome:
         """Point d'entrée équivalent au tool answer_question (sans la rédaction LLM,

@@ -99,6 +99,15 @@ def test_reference_exacte_court_circuite_le_retrieval():
     assert out.hits[0].rerank_score is None
 
 
+def test_search_docs_court_circuite_aussi_sur_une_reference_exacte():
+    # E2 : le routing déterministe par référence (retrieval/routing.py) n'est pas
+    # réservé à search() — search_docs doit garantir la même précision à 100 % sur
+    # REF-xxxx, plutôt qu'un classement dense/BM25 qui peut confondre deux
+    # références lexicalement proches (découvert via l'acceptance suite, chantier 3).
+    out = _engine(None).search_docs("REF-1459")
+    assert out.results[0].ref_produit == "REF-1459"
+
+
 def test_search_docs_brut_sans_dedup_ni_refus():
     # Pas de reranker fourni : search_docs ne doit pas en avoir besoin, contrairement
     # à search() — c'est un mode brut, exploratoire (conception : "sans diversification").
@@ -111,6 +120,9 @@ def test_search_docs_brut_sans_dedup_ni_refus():
     assert "colis-v1.0#0" in ids or "colis-v2.0#0" in ids
     assert all(r.rrf_score is None for r in out.results)  # include_score=False par défaut
     assert all(r.type_doc for r in out.results)
+    # document_id != chunk_id (celui-ci porte le suffixe "#0") : le tool MCP
+    # get_document attend un document_id, pas un identifiant de chunk interne.
+    assert all(r.document_id == r.chunk_id.removesuffix("#0") for r in out.results)
 
 
 def test_search_docs_rang_et_score_expose():
