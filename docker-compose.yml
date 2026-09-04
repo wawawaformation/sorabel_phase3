@@ -54,3 +54,23 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+
+  ui:
+    # Même image que gateway (rien à reconstruire), commande différente : l'interface
+    # de démo (app_gateway.py) est un client MCP autonome (stdio + SORABEL_PROFILE,
+    # comme scripts/mcp_client.py) — elle ne passe pas par le serveur HTTP/Keycloak,
+    # mais a besoin des mêmes données (SQLite, Chroma) qu'il a déjà provisionnées.
+    build: .
+    command: ["uv", "run", "--no-dev", "streamlit", "run", "app_gateway.py",
+              "--server.address", "0.0.0.0", "--server.port", "8501"]
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data/corpus:/app/data/corpus:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+    env_file: .env
+    environment:
+      - CHROMA_URL=http://chroma:8000
+    depends_on:
+      - gateway
