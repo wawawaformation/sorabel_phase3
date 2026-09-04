@@ -11,6 +11,10 @@ Point d'accès unique aux données de **Sorabel**, distributeur B2B de matériel
 - Données en place : base SQL générée par `scripts/seed.py`, corpus de ~400 documents indexé dans Chroma via docker compose
 - Client MCP de test jouable avec les deux profils (`scripts/mcp_client.py`), interface Streamlit de démo bout en bout (`app_gateway.py`)
 
+**Guide d'accès pour les équipes clientes** : [docs/guide_acces.md](docs/guide_acces.md)
+— catalogue des 8 tools (quand utiliser lequel), matrice d'accès par profil, enveloppe
+de réponse, journal.
+
 ## Contrat d'intégration
 
 `docs/spec_mcp.md` fixe le contrat implémenté : matrice réduite aux 3 colonnes SQL
@@ -59,11 +63,12 @@ docker compose up --build
 ```
 
 Démarre Chroma, Keycloak (royaume `sorabel` importé automatiquement, deux comptes de
-démo `commercial-demo`/`support-demo`, mot de passe `demo`) et la gateway HTTP
-(`http://localhost:8090/mcp`), provisionnée automatiquement (base + index) au premier
-démarrage. Voir `docs/spec_deploiement.md` pour le détail. **Royaume de démo
-uniquement** — mots de passe en clair dans `docker/keycloak/sorabel-realm.json`,
-jamais pour un déploiement réel.
+démo `commercial-demo`/`support-demo`, mot de passe `demo`), la gateway HTTP
+(`http://localhost:8090/mcp`) et l'**interface graphique de démo**
+(`http://localhost:8501`, `app_gateway.py` conteneurisé) — provisionnées
+automatiquement (base + index) au premier démarrage. Voir `docs/spec_deploiement.md`
+pour le détail. **Royaume de démo uniquement** — mots de passe en clair dans
+`docker/keycloak/sorabel-realm.json`, jamais pour un déploiement réel.
 
 Exemple d'appel (récupère un token Keycloak puis appelle la gateway) :
 
