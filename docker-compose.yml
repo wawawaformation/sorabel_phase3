@@ -16,17 +16,25 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.7
-    command: ["start-dev", "--import-realm"]
+    # Remplace l'ENTRYPOINT par défaut (juste kc.sh) : render-realm.sh substitue les
+    # mots de passe de démo (depuis l'environnement, jamais du fichier versionné) dans
+    # le royaume avant de lancer kc.sh start-dev --import-realm lui-même.
+    entrypoint: ["/bin/sh", "/opt/keycloak/data/import-template/render-realm.sh"]
     environment:
       - KC_BOOTSTRAP_ADMIN_USERNAME=admin
       - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
       - KC_HOSTNAME=${PUBLIC_HOSTNAME:-localhost}
       - KC_HOSTNAME_PORT=${KEYCLOAK_PORT:-8180}
       - KC_HTTP_ENABLED=true
+      - KEYCLOAK_COMMERCIAL_PASSWORD=${KEYCLOAK_COMMERCIAL_PASSWORD}
+      - KEYCLOAK_SUPPORT_PASSWORD=${KEYCLOAK_SUPPORT_PASSWORD}
     ports:
       - "${KEYCLOAK_PORT:-8180}:8080"
     volumes:
-      - ./docker/keycloak:/opt/keycloak/data/import
+      # :ro et un chemin distinct de /opt/keycloak/data/import : le royaume rendu (avec
+      # les vrais mots de passe) est écrit ailleurs, dans le conteneur uniquement — il
+      # ne touche jamais le disque de l'hôte ni git.
+      - ./docker/keycloak:/opt/keycloak/data/import-template:ro
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080 && echo ok"]
       interval: 5s

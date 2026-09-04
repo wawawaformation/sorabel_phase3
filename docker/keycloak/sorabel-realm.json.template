@@ -27,7 +27,7 @@
       "firstName": "Commercial",
       "lastName": "Demo",
       "requiredActions": [],
-      "credentials": [{"type": "password", "value": "demo", "temporary": false}],
+      "credentials": [{"type": "password", "value": "__COMMERCIAL_DEMO_PASSWORD__", "temporary": false}],
       "realmRoles": ["commercial"]
     },
     {
@@ -38,7 +38,7 @@
       "firstName": "Support",
       "lastName": "Demo",
       "requiredActions": [],
-      "credentials": [{"type": "password", "value": "demo", "temporary": false}],
+      "credentials": [{"type": "password", "value": "__SUPPORT_DEMO_PASSWORD__", "temporary": false}],
       "realmRoles": ["support"]
     }
   ]

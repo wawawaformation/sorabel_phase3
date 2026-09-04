@@ -67,15 +67,16 @@ démo `commercial-demo`/`support-demo`, mot de passe `demo`), la gateway HTTP
 (`http://localhost:8090/mcp`) et l'**interface graphique de démo**
 (`http://localhost:8501`, `app_gateway.py` conteneurisé) — provisionnées
 automatiquement (base + index) au premier démarrage. Voir `docs/spec_deploiement.md`
-pour le détail. **Royaume de démo uniquement** — mots de passe en clair dans
-`docker/keycloak/sorabel-realm.json`, jamais pour un déploiement réel.
+pour le détail. **Royaume de démo uniquement** — mots de passe dans `.env`
+(`KEYCLOAK_COMMERCIAL_PASSWORD`/`KEYCLOAK_SUPPORT_PASSWORD`, générés par
+`scripts/generate_keycloak_passwords.py`, jamais commités), jamais pour un déploiement réel.
 
 Exemple d'appel (récupère un token Keycloak puis appelle la gateway) :
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8180/realms/sorabel/protocol/openid-connect/token \
   -d "client_id=sorabel-gateway" -d "grant_type=password" \
-  -d "username=commercial-demo" -d "password=demo" \
+  -d "username=commercial-demo" -d "password=$KEYCLOAK_COMMERCIAL_PASSWORD" \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 
 curl -s -X POST http://localhost:8090/mcp \

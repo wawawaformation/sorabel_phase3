@@ -24,8 +24,11 @@ le schéma d'entrée d'aucun tool.
 ```bash
 curl -s -X POST http://localhost:8180/realms/sorabel/protocol/openid-connect/token \
   -d "client_id=sorabel-gateway" -d "grant_type=password" \
-  -d "username=commercial-demo" -d "password=demo"   # ou support-demo
+  -d "username=commercial-demo" -d "password=$KEYCLOAK_COMMERCIAL_PASSWORD"   # ou support-demo / $KEYCLOAK_SUPPORT_PASSWORD
 ```
+
+Les mots de passe sont dans `.env` (jamais commités) — voir `KEYCLOAK_COMMERCIAL_PASSWORD`
+et `KEYCLOAK_SUPPORT_PASSWORD`, générés par `scripts/generate_keycloak_passwords.py`.
 
 ## 2. Les deux profils
 
